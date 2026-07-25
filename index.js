@@ -656,8 +656,8 @@ function renderPage(results, options = {}) {
 <h1>Answers requiring attention</h1>`
 
   for (const courseResult of results) {
-    if (courseResult.tab) {
-      // For tab-only courses, just show a link instead of listing answers
+    if (courseResult.tab && !showUserId) {
+      // For tab-only courses on main page, just show a link instead of listing answers
       const linkText = `${escapeHtml(courseResult.name)} <small>(${courseResult.answers.length})</small>`
       html += `<h2><a href="/tab/${encodeURIComponent(courseResult.id)}" target="_blank" rel="noopener noreferrer">${linkText}</a></h2>`
     } else {
