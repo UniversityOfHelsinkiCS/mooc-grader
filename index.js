@@ -505,8 +505,32 @@ function renderGhaCell(ghaEnabled, status) {
   return `<td><span class="badge s-${cssClass}">${escapeHtml(label)}${branchText}</span></td>`
 }
 
-function renderActionCell(itemId, exerciseId, userId, grade) {
-  return `<td><span class="grade-actions"><button class="grade-btn" data-action="FullPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Full points</button><button class="grade-btn grade-btn-zero" data-action="ZeroPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Zero points</button><button class="grade-btn" data-action="Completion" data-user-id="${escapeHtml(userId)}" data-item-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}" data-grade="${escapeHtml(grade ?? "")}">Completion</button></span><span class="grade-result"></span></td>`
+function renderActionCell(
+  itemId,
+  exerciseId,
+  userId = null,
+  grade = null,
+  hideFullPoints = false,
+  hideCompletion = false,
+) {
+  const fullPointsBtn = hideFullPoints
+    ? ""
+    : `<button class="grade-btn" data-action="FullPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Full points</button>`
+  const completionBtn =
+    hideCompletion || !userId
+      ? ""
+      : `<button class="grade-btn" data-action="Completion" data-user-id="${escapeHtml(userId)}" data-item-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}" data-grade="${escapeHtml(grade ?? "")}">Completion</button>`
+
+  let buttonOrder
+  if (hideCompletion) {
+    // Main page: Full points → Zero points
+    buttonOrder = `${fullPointsBtn}<button class="grade-btn grade-btn-zero" data-action="ZeroPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Zero points</button>`
+  } else {
+    // Tab view: Completion → Zero points → Full points
+    buttonOrder = `${completionBtn}<button class="grade-btn grade-btn-zero" data-action="ZeroPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Zero points</button>${fullPointsBtn}`
+  }
+
+  return `<td><span class="grade-actions">${buttonOrder}</span><span class="grade-result"></span></td>`
 }
 
 function calculateGrade(coursePoints) {
@@ -546,7 +570,6 @@ function renderCourseSection(
     const texts = getItemTexts(item)
     const answerCell = renderAnswerCell(texts, item._readmeUrls)
     const ghaCell = renderGhaCell(gha, item._ghaStatus)
-    const actionCell = renderActionCell(item.id, exerciseId)
     const userIdCell = showUserId ? `<td>${escapeHtml(item.user_id)}</td>` : ""
     const userNameCell =
       showUserId && item._userName !== null
@@ -579,6 +602,8 @@ function renderCourseSection(
       exerciseId,
       item.user_id,
       grade,
+      showUserId,
+      !showUserId,
     )
     html += `<tr>${answerIdCell}${userIdCell}${userNameCell}${userEmailCell}${pointsCell}${gradeCell}<td>${answerCell}</td>${ghaCell}${updatedActionCell}</tr>`
   }
@@ -631,7 +656,13 @@ function renderPage(results, options = {}) {
 <h1>Answers requiring attention</h1>`
 
   for (const courseResult of results) {
-    html += renderCourseSection(courseResult, headingAsLink, showUserId)
+    if (courseResult.tab) {
+      // For tab-only courses, just show a link instead of listing answers
+      const linkText = `${escapeHtml(courseResult.name)} <small>(${courseResult.answers.length})</small>`
+      html += `<h2><a href="/tab/${encodeURIComponent(courseResult.id)}" target="_blank" rel="noopener noreferrer">${linkText}</a></h2>`
+    } else {
+      html += renderCourseSection(courseResult, headingAsLink, showUserId)
+    }
   }
 
   html += `<script>
