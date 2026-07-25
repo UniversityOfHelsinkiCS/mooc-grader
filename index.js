@@ -11,6 +11,12 @@ const MOOC_API_BASE = "https://courses.mooc.fi/api/v0/main-frontend"
 const GH_API_BASE = "https://api.github.com"
 
 const courses = [
+  {
+    id: "8b902358-a26a-5ac4-994c-ebc9bbf60910",
+    name: "kubernetes",
+    statusCourseId: "01651d2e-79fd-4afa-8f76-10850ace9c1c",
+    tab: true,
+  },
   { id: "f6926cac-492d-4caf-a97f-5c2c8e776c19", name: "graphql", gha: true },
   { id: "8c8e45c1-e00e-4590-879d-5c7a1ed52c06", name: "typescript", gha: true },
   { id: "27963151-686e-4218-bbc8-1e696e06cb41", name: "react native" },
@@ -256,8 +262,148 @@ async function getReadmeUrls(repoUrl) {
   }
 }
 
+async function getUserCoursePoints(statusCourseId, userId) {
+  if (!statusCourseId || !userId) {
+    return null
+  }
+
+  try {
+    const { status, body } = await httpsGet(
+      `${MOOC_API_BASE}/courses/${statusCourseId}/progress/${userId}`,
+      { Cookie: cookie },
+    )
+
+    if (status !== 200 || !body) {
+      return null
+    }
+
+    if (Array.isArray(body)) {
+      const scores = body
+        .map((entry) => entry?.score_given ?? entry?.scoreGiven)
+        .map((rawScore) =>
+          typeof rawScore === "number"
+            ? rawScore
+            : typeof rawScore === "string"
+              ? Number(rawScore)
+              : NaN,
+        )
+        .filter((score) => Number.isFinite(score))
+
+      if (scores.length === 0) {
+        return null
+      }
+
+      return scores.reduce((sum, score) => sum + score, 0)
+    }
+
+    if (typeof body === "object") {
+      const rawScore = body.score_given ?? body.scoreGiven
+      const numericScore =
+        typeof rawScore === "number"
+          ? rawScore
+          : typeof rawScore === "string"
+            ? Number(rawScore)
+            : NaN
+
+      return Number.isFinite(numericScore) ? numericScore : null
+    }
+
+    return null
+  } catch (error) {
+    console.error(
+      `Course progress points error for ${statusCourseId}/${userId}:`,
+      error.message,
+    )
+    return null
+  }
+}
+
+async function getCourseUserPoints(statusCourseId, userIds) {
+  if (!statusCourseId || userIds.length === 0) {
+    return new Map()
+  }
+
+  const pointEntries = await Promise.all(
+    userIds.map(async (userId) => [
+      userId,
+      await getUserCoursePoints(statusCourseId, userId),
+    ]),
+  )
+
+  return new Map(pointEntries)
+}
+
+async function getUserDetailsForCourse(courseId, userId) {
+  if (!courseId || !userId) {
+    return null
+  }
+
+  try {
+    const { status, body } = await httpsPostJson(
+      `${MOOC_API_BASE}/user-details/user-by-courses`,
+      {
+        user_id: userId,
+        course_ids: [courseId],
+      },
+      { Cookie: cookie },
+    )
+
+    if (status !== 200 || !body || typeof body !== "object") {
+      return null
+    }
+
+    const firstName =
+      typeof body.first_name === "string" ? body.first_name.trim() : ""
+    const lastName =
+      typeof body.last_name === "string" ? body.last_name.trim() : ""
+    const name = `${firstName} ${lastName}`.trim()
+    const email = typeof body.email === "string" ? body.email.trim() : ""
+
+    return {
+      name: name || null,
+      email: email || null,
+    }
+  } catch (error) {
+    console.error(
+      `User details error for ${courseId}/${userId}:`,
+      error.message,
+    )
+    return null
+  }
+}
+
+async function getCourseUserDetails(courseId, userIds) {
+  if (!courseId || userIds.length === 0) {
+    return new Map()
+  }
+
+  const detailEntries = await Promise.all(
+    userIds.map(async (userId) => [
+      userId,
+      await getUserDetailsForCourse(courseId, userId),
+    ]),
+  )
+
+  return new Map(detailEntries)
+}
+
 async function fetchCourseData(course) {
   const answers = await fetchAllAnswers(course.id)
+  const userIds = [
+    ...new Set(answers.map((item) => item.user_id).filter(Boolean)),
+  ]
+  const [userPointsById, userDetailsById] = await Promise.all([
+    getCourseUserPoints(course.statusCourseId, userIds),
+    getCourseUserDetails(course.statusCourseId, userIds),
+  ])
+
+  for (const item of answers) {
+    item._coursePoints = userPointsById.get(item.user_id) ?? null
+    const details = userDetailsById.get(item.user_id)
+    item._userName = details?.name ?? null
+    item._userEmail = details?.email ?? null
+  }
+
   if (course.gha) {
     await Promise.all(
       answers.map(async (item) => {
@@ -283,6 +429,7 @@ async function fetchCourseData(course) {
     id: course.id,
     name: course.name,
     gha: !!course.gha,
+    tab: !!course.tab,
     answers,
   }
 }
@@ -358,18 +505,104 @@ function renderGhaCell(ghaEnabled, status) {
   return `<td><span class="badge s-${cssClass}">${escapeHtml(label)}${branchText}</span></td>`
 }
 
-function renderActionCell(itemId, exerciseId) {
-  return `<td><span class="grade-actions"><button class="grade-btn" data-action="FullPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Full points</button><button class="grade-btn grade-btn-zero" data-action="ZeroPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Zero points</button></span><span class="grade-result"></span></td>`
+function renderActionCell(itemId, exerciseId, userId, grade) {
+  return `<td><span class="grade-actions"><button class="grade-btn" data-action="FullPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Full points</button><button class="grade-btn grade-btn-zero" data-action="ZeroPoints" data-user-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}">Zero points</button><button class="grade-btn" data-action="Completion" data-user-id="${escapeHtml(userId)}" data-item-id="${escapeHtml(itemId)}" data-exercise-id="${escapeHtml(exerciseId)}" data-grade="${escapeHtml(grade ?? "")}">Completion</button></span><span class="grade-result"></span></td>`
 }
 
-function renderPage(results) {
+function calculateGrade(coursePoints) {
+  if (typeof coursePoints !== "number" || !Number.isFinite(coursePoints)) {
+    return null
+  }
+
+  if (coursePoints >= 49) return 5
+  if (coursePoints >= 44) return 4
+  if (coursePoints >= 39) return 3
+  if (coursePoints >= 34) return 2
+  if (coursePoints >= 29) return 1
+  return 0
+}
+
+function renderCourseSection(
+  courseResult,
+  headingAsLink = false,
+  showUserId = false,
+) {
+  const { id: exerciseId, name, gha, tab, answers } = courseResult
+  const headingText = `${escapeHtml(name)} <small>(${answers.length})</small>`
+  const headingContent =
+    headingAsLink && tab
+      ? `<a href="/tab/${encodeURIComponent(exerciseId)}" target="_blank" rel="noopener noreferrer">${headingText}</a>`
+      : headingText
+
+  let html = `<h2>${headingContent}</h2>`
+
+  if (answers.length === 0) {
+    html += `<p class="none">No answers.</p>`
+    return html
+  }
+
+  html += `<table><thead><tr>${showUserId ? "" : "<th>Answer ID</th>"}${showUserId ? "<th>User ID</th><th>Name</th><th>Email</th><th>Course points</th><th>Grade</th>" : ""}<th>Answer</th>${gha ? "<th>GHA status</th>" : ""}<th>Action</th></tr></thead><tbody>`
+  for (const item of answers) {
+    const texts = getItemTexts(item)
+    const answerCell = renderAnswerCell(texts, item._readmeUrls)
+    const ghaCell = renderGhaCell(gha, item._ghaStatus)
+    const actionCell = renderActionCell(item.id, exerciseId)
+    const userIdCell = showUserId ? `<td>${escapeHtml(item.user_id)}</td>` : ""
+    const userNameCell =
+      showUserId && item._userName !== null
+        ? `<td>${escapeHtml(item._userName)}</td>`
+        : showUserId
+          ? "<td></td>"
+          : ""
+    const userEmailCell =
+      showUserId && item._userEmail !== null
+        ? `<td>${escapeHtml(item._userEmail)}</td>`
+        : showUserId
+          ? "<td></td>"
+          : ""
+    const pointsCell =
+      showUserId && item._coursePoints !== null
+        ? `<td>${escapeHtml(item._coursePoints)}</td>`
+        : showUserId
+          ? "<td></td>"
+          : ""
+    const grade = calculateGrade(item._coursePoints)
+    const gradeCell =
+      showUserId && grade !== null
+        ? `<td>${escapeHtml(grade)}</td>`
+        : showUserId
+          ? "<td></td>"
+          : ""
+    const answerIdCell = showUserId ? "" : `<td>${escapeHtml(item.id)}</td>`
+    const updatedActionCell = renderActionCell(
+      item.id,
+      exerciseId,
+      item.user_id,
+      grade,
+    )
+    html += `<tr>${answerIdCell}${userIdCell}${userNameCell}${userEmailCell}${pointsCell}${gradeCell}<td>${answerCell}</td>${ghaCell}${updatedActionCell}</tr>`
+  }
+  html += `</tbody></table>`
+
+  return html
+}
+
+function renderPage(results, options = {}) {
+  const {
+    headingAsLink = true,
+    showUserId = false,
+    compactLayout = false,
+  } = options
+  const bodyStyle = compactLayout
+    ? "font-family: sans-serif; margin: 1rem; padding: 0;"
+    : "font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;"
   let html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Answers requiring attention</title>
   <style>
-    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    body { ${bodyStyle} }
     h2 { margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
     table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
     th, td { text-align: left; padding: 0.4rem 0.6rem; border: 1px solid #ddd; }
@@ -397,23 +630,8 @@ function renderPage(results) {
 <body>
 <h1>Answers requiring attention</h1>`
 
-  for (const { id: exerciseId, name, gha, answers } of results) {
-    html += `<h2>${escapeHtml(name)} <small>(${answers.length})</small></h2>`
-
-    if (answers.length === 0) {
-      html += `<p class="none">No answers.</p>`
-      continue
-    }
-
-    html += `<table><thead><tr><th>Answer ID</th><th>Answer</th>${gha ? "<th>GHA status</th>" : ""}<th>Action</th></tr></thead><tbody>`
-    for (const item of answers) {
-      const texts = getItemTexts(item)
-      const answerCell = renderAnswerCell(texts, item._readmeUrls)
-      const ghaCell = renderGhaCell(gha, item._ghaStatus)
-      const actionCell = renderActionCell(item.id, exerciseId)
-      html += `<tr><td>${escapeHtml(item.id)}</td><td>${answerCell}</td>${ghaCell}${actionCell}</tr>`
-    }
-    html += `</tbody></table>`
+  for (const courseResult of results) {
+    html += renderCourseSection(courseResult, headingAsLink, showUserId)
   }
 
   html += `<script>
@@ -422,11 +640,18 @@ function renderPage(results) {
       if (!button) return
 
       const userExerciseStateId = button.dataset.userId
+      const itemId = button.dataset.itemId
       const exerciseId = button.dataset.exerciseId
       const action = button.dataset.action || "FullPoints"
+      const grade = button.dataset.grade
 
       if (action === "ZeroPoints") {
         const confirmed = window.confirm("Set this submission to zero points?")
+        if (!confirmed) return
+      }
+
+      if (action === "Completion") {
+        const confirmed = window.confirm("Submit completion for this user?")
         if (!confirmed) return
       }
 
@@ -442,28 +667,91 @@ function renderPage(results) {
       result.className = "grade-result"
 
       try {
-        const response = await fetch("/grade", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        let allOk = true
+
+        if (action === "Completion") {
+          console.log("Completion button clicked", { userExerciseStateId, itemId, exerciseId, grade })
+          // First, submit completion
+          const today = new Date()
+          const completionDate = today.toISOString().replace('Z', '+00:00')
+          const completionPayload = {
+            user_id: userExerciseStateId,
+            grade: parseInt(grade) || 0,
+            completion_date: completionDate,
+          }
+
+          const completionResponse = await fetch("/completion", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(completionPayload),
+          })
+
+          const completionData = await completionResponse.json()
+          if (!completionResponse.ok || !completionData.ok) {
+            allOk = false
+            const completionError = completionData?.error || completionData?.body?.error || ("completion failed (" + completionResponse.status + ")")
+            console.error("Completion failed:", completionError, completionData)
+          }
+
+          // Then, submit full points grading
+          const gradePayload = {
+            user_exercise_state_id: itemId,
+            exercise_id: exerciseId,
+            action: "FullPoints",
+          }
+
+          console.log("About to post grading with payload:", gradePayload)
+
+          const gradeResponse = await fetch("/grade", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(gradePayload),
+          })
+
+          const gradeData = await gradeResponse.json()
+          console.log("Grade response:", gradeResponse.status, gradeData)
+          if (!gradeResponse.ok || !gradeData.ok) {
+            allOk = false
+            const gradeError = gradeData?.error || gradeData?.body?.error || ("grade failed (" + gradeResponse.status + ")")
+            result.textContent = gradeError
+            result.classList.add("grade-fail")
+          }
+
+          if (allOk) {
+            result.textContent = "ok"
+            result.classList.add("grade-ok")
+            buttons.forEach((btn) => {
+              btn.classList.remove("grade-btn-selected")
+            })
+            button.classList.add("grade-btn-selected")
+          }
+        } else {
+          // Original grading flow for FullPoints/ZeroPoints
+          const payload = {
             user_exercise_state_id: userExerciseStateId,
             exercise_id: exerciseId,
             action,
-          }),
-        })
+          }
 
-        const data = await response.json()
-        if (response.ok && data.ok) {
-          result.textContent = "ok"
-          result.classList.add("grade-ok")
-          buttons.forEach((btn) => {
-            btn.classList.remove("grade-btn-selected")
+          const response = await fetch("/grade", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
           })
-          button.classList.add("grade-btn-selected")
-        } else {
-          const msg = data?.error || data?.body?.error || ("failed (" + response.status + ")")
-          result.textContent = msg
-          result.classList.add("grade-fail")
+
+          const data = await response.json()
+          if (response.ok && data.ok) {
+            result.textContent = "ok"
+            result.classList.add("grade-ok")
+            buttons.forEach((btn) => {
+              btn.classList.remove("grade-btn-selected")
+            })
+            button.classList.add("grade-btn-selected")
+          } else {
+            const msg = data?.error || data?.body?.error || ("failed (" + response.status + ")")
+            result.textContent = msg
+            result.classList.add("grade-fail")
+          }
         }
       } catch (err) {
         result.textContent = err.message
@@ -531,7 +819,78 @@ app.post("/grade", async (req, res) => {
 app.get("/", async (req, res) => {
   try {
     const results = await Promise.all(courses.map(fetchCourseData))
-    res.send(renderPage(results))
+    res.send(
+      renderPage(results, {
+        headingAsLink: true,
+        showUserId: false,
+        compactLayout: false,
+      }),
+    )
+  } catch (err) {
+    res.status(500).send(`<pre>${err.message}</pre>`)
+  }
+})
+
+app.post("/completion", async (req, res) => {
+  try {
+    const { user_id, grade, completion_date } = req.body || {}
+    if (!user_id) {
+      return res.status(400).json({ error: "Missing user_id" })
+    }
+
+    const payload = {
+      course_module_id: "9c648dca-9a49-5ba8-ad3d-67848b641fd6",
+      new_completions: [
+        {
+          user_id,
+          grade: typeof grade === "number" ? grade : 0,
+          completion_date: completion_date || new Date().toISOString(),
+          passed: (grade ?? 0) >= 1,
+        },
+      ],
+      skip_duplicate_completions: false,
+    }
+
+    const response = await httpsPostJson(
+      "https://courses.mooc.fi/api/v0/main-frontend/course-instances/e0215028-f31f-4e93-8f5b-4d38eaa504a6/completions",
+      payload,
+      { Cookie: cookie },
+    )
+
+    if (response.status >= 200 && response.status < 300) {
+      return res.json({
+        ok: true,
+        status: response.status,
+        body: response.body,
+      })
+    }
+
+    return res.status(response.status || 500).json({
+      ok: false,
+      status: response.status,
+      body: response.body,
+    })
+  } catch (err) {
+    return res.status(500).json({ error: err.message })
+  }
+})
+
+app.get("/tab/:exerciseId", async (req, res) => {
+  try {
+    const { exerciseId } = req.params
+    const course = courses.find((item) => item.id === exerciseId && item.tab)
+    if (!course) {
+      return res.status(404).send("<pre>Tab course not found</pre>")
+    }
+
+    const result = await fetchCourseData(course)
+    res.send(
+      renderPage([result], {
+        headingAsLink: false,
+        showUserId: true,
+        compactLayout: true,
+      }),
+    )
   } catch (err) {
     res.status(500).send(`<pre>${err.message}</pre>`)
   }
