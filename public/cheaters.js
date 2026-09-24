@@ -3,7 +3,8 @@ document.addEventListener("click", async (event) => {
   if (!button) return
 
   const action = button.dataset.action
-  const endpoint = action === "confirm" ? "/confirm-cheater" : "/dismiss-cheater"
+  const basePath = document.body.dataset.basePath ?? ""
+  const endpoint = `${basePath}/${action === "confirm" ? "confirm-cheater" : "dismiss-cheater"}`
   const confirmMessage =
     action === "confirm"
       ? "Confirm this user as a cheater?"

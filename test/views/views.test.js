@@ -179,7 +179,7 @@ describe("renderTabPage", () => {
       _userEmail: "ada@x.fi",
     }
     const html = renderTabPage(kubernetes, [courseResult({ answers: [item] })])
-    assert.ok(html.includes('<body class="compact">'))
+    assert.ok(html.includes('<body class="compact" data-base-path="">'))
     assert.ok(
       html.includes("<td>u1</td><td>Ada</td><td>ada@x.fi</td><td>45</td><td>4</td>"),
     )

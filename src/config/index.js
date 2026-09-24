@@ -9,9 +9,21 @@ function parseList(value) {
     .filter(Boolean)
 }
 
+// "/mooc-grader", "mooc-grader/" -> "/mooc-grader"; "" or "/" -> ""
+function normalizeBasePath(value) {
+  const trimmed = (value ?? "").trim().replace(/^\/+|\/+$/g, "")
+  if (trimmed === "") return ""
+  if (!/^[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/.test(trimmed)) {
+    throw new Error(`Invalid BASE_PATH "${value}"`)
+  }
+  return `/${trimmed}`
+}
+
 function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 3033,
+    // Path prefix the app is served under, e.g. BASE_PATH=/mooc-grader
+    basePath: normalizeBasePath(env.BASE_PATH),
     moocApiBase: "https://courses.mooc.fi/api/v0/main-frontend",
     githubApiBase: "https://api.github.com",
     githubToken: env.GITHUB_TOKEN,
@@ -30,4 +42,4 @@ function loadConfig(env = process.env) {
   }
 }
 
-module.exports = { loadConfig }
+module.exports = { loadConfig, normalizeBasePath }

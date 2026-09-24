@@ -76,11 +76,11 @@ function renderAnswerRow(item, courseResult, completionTabId) {
   return `<tr>${userCells}<td>${answerCell}</td>${renderGhaCell(gha, item._ghaStatus)}${renderChecksCell(answerChecks(item, courseResult))}${actionCell}</tr>`
 }
 
-function renderCourseSection(courseResult, completionTabId = null) {
+function renderCourseSection(courseResult, completionTabId, basePath) {
   const { name, gha, courseId, cheaterCount, answers } = courseResult
   const cheaterBadge =
     cheaterCount !== null && cheaterCount > 0
-      ? ` <span class="badge s-flagged">${externalLink(`/cheaters/${encodeURIComponent(courseId)}`, `${cheaterCount} flagged`)}</span>`
+      ? ` <span class="badge s-flagged">${externalLink(`${basePath}/cheaters/${encodeURIComponent(courseId)}`, `${cheaterCount} flagged`)}</span>`
       : ""
 
   let html = `<h2>${escapeHtml(name)} <small>(${answers.length})</small>${cheaterBadge}</h2>`
@@ -127,11 +127,11 @@ function renderLoadError({ name, error }) {
   return `<h2>${escapeHtml(name)}</h2><p class="load-error">Could not load: ${escapeHtml(error)}</p>`
 }
 
-function tabUrl(tabId) {
-  return `/${encodeURIComponent(tabId)}`
+function tabUrl(tabId, basePath) {
+  return `${basePath}/${encodeURIComponent(tabId)}`
 }
 
-function renderOverviewRow(overview) {
+function renderOverviewRow(overview, basePath) {
   const flagged =
     overview.cheaterCount > 0
       ? `<span class="badge s-flagged">${overview.cheaterCount} flagged</span>`
@@ -142,31 +142,33 @@ function renderOverviewRow(overview) {
           .map(({ name, error }) => `${escapeHtml(name)} (${escapeHtml(error)})`)
           .join(", ")}</p>`
       : ""
-  return `<tr><td><a href="${tabUrl(overview.id)}">${escapeHtml(overview.name)}</a>${failed}</td><td>${overview.answerCount}</td><td>${flagged}</td></tr>`
+  return `<tr><td><a href="${escapeHtml(tabUrl(overview.id, basePath))}">${escapeHtml(overview.name)}</a>${failed}</td><td>${overview.answerCount}</td><td>${flagged}</td></tr>`
 }
 
-function renderOverviewPage(overviews) {
+function renderOverviewPage(overviews, { basePath = "" } = {}) {
   return layout({
     title: "Answers requiring attention",
+    basePath,
     body: `<h1>Answers requiring attention</h1>
-<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map(renderOverviewRow).join("")}</tbody></table>`,
+<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>`,
   })
 }
 
 // Tabs with completions list answers per user and use the full page width
-function renderTabPage(tab, results) {
+function renderTabPage(tab, results, { basePath = "" } = {}) {
   const completionTabId = tab.completion ? tab.id : null
   const sections = results.map((courseResult) =>
     courseResult.error
       ? renderLoadError(courseResult)
-      : renderCourseSection(courseResult, completionTabId),
+      : renderCourseSection(courseResult, completionTabId, basePath),
   )
 
   return layout({
     title: `${escapeHtml(tab.name)} - answers requiring attention`,
+    basePath,
     bodyClass: completionTabId ? "compact" : null,
-    body: `<p><a href="/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${sections.join("")}${renderResetModal()}
-  <script src="/static/grading.js"></script>`,
+    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${sections.join("")}${renderResetModal()}
+  <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }
 
@@ -181,7 +183,7 @@ function renderCheaterRow(cheater) {
   return `<tr><td>${userId}</td><td>${escapeHtml(cheater.name ?? "")}</td><td>${escapeHtml(cheater.email ?? "")}</td><td>${escapeHtml(cheater.durationMinutes)}</td><td>${escapeHtml(cheater.totalPoints)}</td><td>${submissionsCell}</td>${actionCell}</tr>`
 }
 
-function renderCheatersPage(courseName, cheaters, courseId) {
+function renderCheatersPage(courseName, cheaters, courseId, { basePath = "" } = {}) {
   const table =
     cheaters.length === 0
       ? `<p class="none">No flagged users.</p>`
@@ -189,10 +191,11 @@ function renderCheatersPage(courseName, cheaters, courseId) {
 
   return layout({
     title: `Suspected cheaters - ${escapeHtml(courseName)}`,
+    basePath,
     bodyClass: "compact",
     bodyAttributes: ` data-course-id="${escapeHtml(courseId)}"`,
     body: `<h1>Suspected cheaters <small>(${escapeHtml(courseName)})</small></h1>${table}
-  <script src="/static/cheaters.js"></script>`,
+  <script src="${escapeHtml(basePath)}/static/cheaters.js"></script>`,
   })
 }
 

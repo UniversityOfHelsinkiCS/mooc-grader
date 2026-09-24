@@ -86,6 +86,18 @@ describe("access control", () => {
 describe("auth config", () => {
   const env = (NODE_ENV) => ({ NODE_ENV, COOKIE_FILE: __filename })
 
+  test("normalizes BASE_PATH", () => {
+    const basePath = (value) => loadConfig({ ...env("production"), BASE_PATH: value }).basePath
+    assert.equal(basePath(undefined), "")
+    assert.equal(basePath("/"), "")
+    assert.equal(basePath("/mooc-grader"), "/mooc-grader")
+    assert.equal(basePath("mooc-grader/"), "/mooc-grader")
+    assert.equal(basePath("/a/b/"), "/a/b")
+    for (const bad of ['/x"><script>', "/a//b", "/ä"]) {
+      assert.throws(() => basePath(bad), /Invalid BASE_PATH/, bad)
+    }
+  })
+
   test("is enforced unless running in development", () => {
     assert.equal(loadConfig(env("production")).auth.enforce, true)
     assert.equal(loadConfig(env(undefined)).auth.enforce, true)

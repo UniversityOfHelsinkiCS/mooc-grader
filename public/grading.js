@@ -1,3 +1,6 @@
+// Path prefix the app is served under, set by the server on <body>
+const basePath = document.body.dataset.basePath ?? ""
+
 let pendingReset = null
 
 function openResetModal(userExerciseStateId, exerciseId, button) {
@@ -58,7 +61,7 @@ document.getElementById("reset-modal-submit").addEventListener("click", async ()
   }
 
   try {
-    const response = await fetch("/grade", {
+    const response = await fetch(`${basePath}/grade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -158,7 +161,7 @@ document.addEventListener("click", async (event) => {
         completion_date: completionDate,
       }
 
-      const completionResponse = await fetch("/completion", {
+      const completionResponse = await fetch(`${basePath}/completion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(completionPayload),
@@ -183,7 +186,7 @@ document.addEventListener("click", async (event) => {
 
       console.log("About to post grading with payload:", gradePayload)
 
-      const gradeResponse = await fetch("/grade", {
+      const gradeResponse = await fetch(`${basePath}/grade`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(gradePayload),
@@ -214,7 +217,7 @@ document.addEventListener("click", async (event) => {
         action,
       }
 
-      const response = await fetch("/grade", {
+      const response = await fetch(`${basePath}/grade`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

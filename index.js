@@ -30,10 +30,11 @@ const app = createApp({
   mooc,
   courseService,
   auth: config.auth,
+  basePath: config.basePath,
 })
 
 const server = app.listen(config.port, () => {
-  console.log(`Server running at http://localhost:${config.port}`)
+  console.log(`Server running at http://localhost:${config.port}${config.basePath}/`)
 })
 
 // Node running as PID 1 in a container has no default signal handlers, so

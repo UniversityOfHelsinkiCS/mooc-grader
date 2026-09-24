@@ -6,16 +6,23 @@ const { requireAllowedUser } = require("./middleware/requireAllowedUser")
 const { securityHeaders } = require("./middleware/securityHeaders")
 const { requireSameOrigin } = require("./middleware/requireSameOrigin")
 
-function createApp({ tabs, mooc, courseService, auth }) {
+// basePath: path prefix the app is served under, e.g. "/mooc-grader" when
+// the proxy forwards opetushallinto.cs.helsinki.fi/mooc-grader/... as is.
+// "" serves it at the root.
+function createApp({ tabs, mooc, courseService, auth, basePath = "" }) {
   const app = express()
   app.disable("x-powered-by")
-  app.use(securityHeaders)
-  app.use(requireAllowedUser(auth))
-  app.use(requireSameOrigin)
-  app.use(express.json())
-  app.use("/static", express.static(path.join(__dirname, "..", "public")))
-  app.use(createApiRouter({ tabs, mooc }))
-  app.use(createPageRouter({ tabs, courseService }))
+
+  const router = express.Router()
+  router.use(securityHeaders)
+  router.use(requireAllowedUser(auth))
+  router.use(requireSameOrigin)
+  router.use(express.json())
+  router.use("/static", express.static(path.join(__dirname, "..", "public")))
+  router.use(createApiRouter({ tabs, mooc }))
+  router.use(createPageRouter({ tabs, courseService, basePath }))
+
+  app.use(basePath || "/", router)
   return app
 }
 

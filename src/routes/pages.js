@@ -11,13 +11,13 @@ function errorPage(res, status, message) {
   return res.status(status).send(`<pre>${escapeHtml(message)}</pre>`)
 }
 
-function createPageRouter({ tabs, courseService }) {
+function createPageRouter({ tabs, courseService, basePath }) {
   const router = express.Router()
 
   router.get("/", async (req, res) => {
     try {
       const overviews = await Promise.all(tabs.map(courseService.fetchTabOverview))
-      res.send(renderOverviewPage(overviews))
+      res.send(renderOverviewPage(overviews, { basePath }))
     } catch (err) {
       errorPage(res, 500, err.message)
     }
@@ -32,7 +32,7 @@ function createPageRouter({ tabs, courseService }) {
       }
 
       const { name, cheaters } = await courseService.fetchCheatersData(course)
-      res.send(renderCheatersPage(name, cheaters, courseId))
+      res.send(renderCheatersPage(name, cheaters, courseId, { basePath }))
     } catch (err) {
       errorPage(res, 500, err.message)
     }
@@ -47,7 +47,7 @@ function createPageRouter({ tabs, courseService }) {
       }
 
       const results = await courseService.fetchTabData(tab)
-      res.send(renderTabPage(tab, results))
+      res.send(renderTabPage(tab, results, { basePath }))
     } catch (err) {
       errorPage(res, 500, err.message)
     }
