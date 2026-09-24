@@ -27,7 +27,13 @@ describe("access control", () => {
     }
     server = await startServer(
       createApp({
-        tabs: [{ id: "t", name: "T", courses: [{ exerciseId: "ex1", name: "graphql" }] }],
+        tabs: [
+          {
+            id: "t",
+            name: "T",
+            courses: [{ exerciseId: "ex1", name: "graphql" }],
+          },
+        ],
         mooc,
         courseService,
         auth: { allowedUids: ["mluukkai", "ousavola"], enforce: true },
@@ -44,10 +50,16 @@ describe("access control", () => {
 
   test("rejects requests without a uid", async (t) => {
     t.mock.method(console, "warn", () => {})
-    for (const path of ["/", "/static/styles.css", "/t", "/cheaters/x", "/nope"]) {
+    for (const path of [
+      "/",
+      "/static/styles.css",
+      "/t",
+      "/cheaters/x",
+      "/nope",
+    ]) {
       const response = await request(path)
       assert.equal(response.status, 403, path)
-      assert.equal(await response.text(), "Forbidden")
+      assert.equal(await response.text(), "Go home")
     }
   })
 
@@ -87,7 +99,8 @@ describe("auth config", () => {
   const env = (NODE_ENV) => ({ NODE_ENV, COOKIE_FILE: __filename })
 
   test("normalizes BASE_PATH", () => {
-    const basePath = (value) => loadConfig({ ...env("production"), BASE_PATH: value }).basePath
+    const basePath = (value) =>
+      loadConfig({ ...env("production"), BASE_PATH: value }).basePath
     assert.equal(basePath(undefined), "")
     assert.equal(basePath("/"), "")
     assert.equal(basePath("/mooc-grader"), "/mooc-grader")

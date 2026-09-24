@@ -48,8 +48,10 @@ function isCrossSiteSubresource(req) {
 function requireSameOrigin(req, res, next) {
   if (SAFE_METHODS.has(req.method)) {
     if (isCrossSiteSubresource(req)) {
-      console.warn(`Cross-site ${req.get("sec-fetch-dest")} request to ${req.path} rejected`)
-      return res.status(403).send("Forbidden")
+      console.warn(
+        `Cross-site ${req.get("sec-fetch-dest")} request to ${req.path} rejected`,
+      )
+      return res.status(403).send("Go home")
     }
     return next()
   }
@@ -60,7 +62,9 @@ function requireSameOrigin(req, res, next) {
   }
 
   if (!req.is("application/json")) {
-    return res.status(415).json({ error: "Content-Type must be application/json" })
+    return res
+      .status(415)
+      .json({ error: "Content-Type must be application/json" })
   }
 
   return next()

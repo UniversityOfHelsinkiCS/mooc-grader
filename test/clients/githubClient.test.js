@@ -81,7 +81,10 @@ describe("getGhaStatus", () => {
       },
     })
     const tooMany = client({
-      "GET /actions/runs": { status: 429, body: { message: "Too Many Requests" } },
+      "GET /actions/runs": {
+        status: 429,
+        body: { message: "Too Many Requests" },
+      },
     })
     const secondary = client({
       "GET /actions/runs": {
@@ -132,7 +135,9 @@ describe("repoExists", () => {
     silenceConsoleErrors(t)
     const ok = client({ "GET /repos/alice/app": { status: 200, body: {} } })
     const notFound = client({})
-    const failing = client({ "GET /repos/alice/app": { status: 500, body: {} } })
+    const failing = client({
+      "GET /repos/alice/app": { status: 500, body: {} },
+    })
 
     assert.equal(await ok.github.repoExists(repoUrl), true)
     assert.equal(await notFound.github.repoExists(repoUrl), false)
@@ -184,7 +189,7 @@ describe("getReadme", () => {
   test("returns null when the README cannot be fetched", async (t) => {
     silenceConsoleErrors(t)
     const { github } = client({
-      "GET /readme": { status: 403, body: { message: "Forbidden" } },
+      "GET /readme": { status: 403, body: { message: "Go home" } },
     })
     assert.equal(await github.getReadme(repoUrl), null)
   })

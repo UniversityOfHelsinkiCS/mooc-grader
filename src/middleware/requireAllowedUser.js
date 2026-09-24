@@ -12,7 +12,7 @@ function requireAllowedUser({ allowedUids, enforce = true }) {
     const uid = req.headers.uid
     if (!uid || !allowed.has(uid)) {
       console.warn(`Access denied for uid ${uid ? `"${uid}"` : "(missing)"}`)
-      return res.status(403).send("Forbidden")
+      return res.status(403).send("Go home")
     }
 
     req.uid = uid
