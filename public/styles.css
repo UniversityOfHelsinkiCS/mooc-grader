@@ -1,0 +1,48 @@
+/* Main page: centered column. body.compact: full-width tables (tab and cheaters pages) */
+body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+body.compact { max-width: none; margin: 1rem; padding: 0; }
+h2 { margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
+table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+th, td { text-align: left; padding: 0.4rem 0.6rem; border: 1px solid #ddd; }
+th { background: #f4f4f4; }
+a { color: #0969da; }
+.none { color: #888; font-style: italic; }
+.load-error { color: #cf222e; font-weight: 600; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #fff; }
+.badge a { color: #fff; text-decoration: none; }
+.checkbox-ok { color: #2da44e; font-weight: 600; }
+.checkbox-no { color: #888; }
+.repo-missing { color: #cf222e; font-weight: 600; }
+.qr-ok { color: #2da44e; font-weight: 600; }
+.qr-missing { color: #cf222e; font-weight: 600; }
+.links-ok { color: #2da44e; font-weight: 600; }
+.links-missing { color: #cf222e; font-weight: 600; }
+.checks-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #fff; }
+.checks-pass { background: #2da44e; }
+.checks-fail { background: #cf222e; }
+.checks-unknown { background: #888; }
+.gha-success { background: #2da44e; }
+.gha-failure { background: #cf222e; }
+.gha-pending { background: #d4a017; color: #000; }
+.gha-neutral { background: #888; }
+.s-flagged { background: #cf222e; }
+.grade-actions { display: inline-flex; gap: 0.4rem; }
+.grade-btn { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 0.3rem 0.6rem; cursor: pointer; }
+.grade-btn-zero { border-color: #cf222e; color: #cf222e; }
+.grade-btn-green { border-color: #2da44e; color: #2da44e; }
+.grade-btn-reset { border-color: #d4a017; color: #9a6700; }
+.grade-btn-selected { background: #2da44e; border-color: #2da44e; color: #fff; }
+.grade-btn-zero.grade-btn-selected { background: #cf222e; border-color: #cf222e; color: #fff; }
+.grade-btn-green.grade-btn-selected { background: #2da44e; border-color: #2da44e; color: #fff; }
+.grade-btn-reset.grade-btn-selected { background: #d4a017; border-color: #d4a017; color: #000; }
+.grade-btn:disabled { opacity: 0.6; cursor: default; }
+.grade-result { margin-left: 0.5rem; font-size: 0.85rem; color: #555; }
+.grade-ok { color: #2da44e; }
+.grade-fail { color: #cf222e; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-overlay[hidden] { display: none; }
+.modal { background: #fff; border-radius: 8px; padding: 1.5rem; width: 90%; max-width: 420px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25); }
+.modal h3 { margin-top: 0; }
+.modal select, .modal textarea { width: 100%; margin-top: 0.4rem; margin-bottom: 1rem; padding: 0.4rem; box-sizing: border-box; font-family: inherit; font-size: 0.9rem; }
+.modal textarea { min-height: 4.5rem; resize: vertical; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
