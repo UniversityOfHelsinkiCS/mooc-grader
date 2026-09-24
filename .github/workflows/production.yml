@@ -1,8 +1,11 @@
 name: Release to production
 
+# Every commit to master is tested and, if the tests pass, built and pushed
+# as the production image. Other branches are not built, so they cannot
+# overwrite the production tag.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [master]
 
 jobs:
   test:
