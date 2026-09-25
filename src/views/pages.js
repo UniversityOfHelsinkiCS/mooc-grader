@@ -2,6 +2,7 @@ const { getItemTexts } = require("../domain/answers")
 const { calculateGrade } = require("../domain/grading")
 const { isGhaFailed, isGhaPassing } = require("../domain/repository")
 const { escapeHtml, externalLink, layout } = require("./html")
+const { renderInvitesSummary } = require("./invitesPage")
 const {
   renderAnswerCell,
   renderGhaCell,
@@ -145,12 +146,13 @@ function renderOverviewRow(overview, basePath) {
   return `<tr><td><a href="${escapeHtml(tabUrl(overview.id, basePath))}">${escapeHtml(overview.name)}</a>${failed}</td><td>${overview.answerCount}</td><td>${flagged}</td></tr>`
 }
 
-function renderOverviewPage(overviews, { basePath = "" } = {}) {
+// invites: invitation summary per GitHub account, or null to leave it out
+function renderOverviewPage(overviews, { basePath = "", invites = null } = {}) {
   return layout({
     title: "Answers requiring attention",
     basePath,
     body: `<h1>Answers requiring attention</h1>
-<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>`,
+<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>${invites ? renderInvitesSummary(invites, basePath) : ""}`,
   })
 }
 

@@ -98,6 +98,20 @@ describe("access control", () => {
 describe("auth config", () => {
   const env = (NODE_ENV) => ({ NODE_ENV, COOKIE_FILE: __filename })
 
+  test("reads the primary and optional secondary GitHub token", () => {
+    const labels = (extra) =>
+      loadConfig({ ...env("production"), ...extra }).githubCredentials.map(
+        ({ label, token }) => `${label}=${token}`,
+      )
+    assert.deepEqual(labels({}), [])
+    assert.deepEqual(labels({ GITHUB_TOKEN: "a" }), ["primary=a"])
+    assert.deepEqual(labels({ GITHUB_TOKEN: "a", GITHUB_TOKEN_SECONDARY: "b" }), [
+      "primary=a",
+      "secondary=b",
+    ])
+    assert.deepEqual(labels({ GITHUB_TOKEN_SECONDARY: "b" }), ["secondary=b"])
+  })
+
   test("normalizes BASE_PATH", () => {
     const basePath = (value) =>
       loadConfig({ ...env("production"), BASE_PATH: value }).basePath

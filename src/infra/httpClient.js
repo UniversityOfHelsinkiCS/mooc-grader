@@ -101,7 +101,12 @@ function createHttpClient({
     )
   }
 
-  return { get, postJson }
+  // Bodyless requests with other methods, e.g. PATCH or DELETE
+  function send(method, url, headers = {}) {
+    return request(method, url, headers)
+  }
+
+  return { get, postJson, send }
 }
 
 module.exports = { createHttpClient, tryParseJson }

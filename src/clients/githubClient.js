@@ -12,12 +12,50 @@ function isRateLimited(status, body) {
   )
 }
 
-function createGithubClient({ http, baseUrl, token }) {
+// Statuses after which a request is retried with the next token: the token
+// is invalid (401), rate limited or blocked (403, 429), or its account cannot
+// see the repository (404), e.g. when a student invited only the other account
+const RETRY_WITH_NEXT_TOKEN = new Set([401, 403, 404, 429])
+
+// credentials: [{ label, token }], tried in this order
+function createGithubClient({ http, baseUrl, credentials = [] }) {
   const headers = {
     "User-Agent": "crawler",
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+  const states = credentials.map(({ label, token }) => ({
+    label,
+    token,
+    rejected: false,
+  }))
+
+  // Tries each token in turn. A token GitHub rejects (401) is not used again
+  // until restart. With no usable token the request is sent without one,
+  // which works for public repositories at 60 requests per hour.
+  async function githubGet(url) {
+    const usable = states.filter((credential) => !credential.rejected)
+    if (usable.length === 0) {
+      return http.get(url, headers)
+    }
+
+    let response
+    for (const credential of usable) {
+      response = await http.get(url, {
+        ...headers,
+        Authorization: `Bearer ${credential.token}`,
+      })
+      if (response.status === 401 && !credential.rejected) {
+        credential.rejected = true
+        console.error(
+          `GitHub ${credential.label} token was rejected (401); it is not used until restart`,
+        )
+      }
+      if (!RETRY_WITH_NEXT_TOKEN.has(response.status)) {
+        return response
+      }
+    }
+    return response
   }
 
   function readmeUrl({ owner, repo, dir }) {
@@ -34,9 +72,8 @@ function createGithubClient({ http, baseUrl, token }) {
     if (!parsed) return null
     const { owner, repo } = parsed
     try {
-      const { status, body } = await http.get(
+      const { status, body } = await githubGet(
         `${baseUrl}/repos/${owner}/${repo}/actions/runs?per_page=30`,
-        headers,
       )
 
       if (isRateLimited(status, body)) {
@@ -78,10 +115,7 @@ function createGithubClient({ http, baseUrl, token }) {
     if (!parsed) return null
     const { owner, repo } = parsed
     try {
-      const { status } = await http.get(
-        `${baseUrl}/repos/${owner}/${repo}`,
-        headers,
-      )
+      const { status } = await githubGet(`${baseUrl}/repos/${owner}/${repo}`)
       if (status === 404) return false
       if (status === 200) return true
       console.error(
@@ -104,7 +138,7 @@ function createGithubClient({ http, baseUrl, token }) {
     if (!parsed) return null
     const { owner, repo } = parsed
     try {
-      const { status, body } = await http.get(readmeUrl(parsed), headers)
+      const { status, body } = await githubGet(readmeUrl(parsed))
       if (status === 404) return { found: false }
       if (status !== 200 || !body || !body.content) {
         console.error(`README API error ${status} for ${owner}/${repo}`)

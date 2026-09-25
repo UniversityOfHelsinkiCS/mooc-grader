@@ -22,7 +22,12 @@ async function relay(res, requestUpstream) {
   }
 }
 
-function createApiRouter({ tabs, mooc }) {
+// GitHub invitation ids are positive integers, accounts are indexes
+function isIndex(value) {
+  return Number.isInteger(value) && value >= 0
+}
+
+function createApiRouter({ tabs, mooc, invitationService }) {
   const router = express.Router()
 
   router.post("/grade", (req, res) => {
@@ -85,6 +90,68 @@ function createApiRouter({ tabs, mooc }) {
 
   router.post("/dismiss-cheater", cheaterAction("dismiss"))
   router.post("/confirm-cheater", cheaterAction("confirm"))
+
+  function invitationAction(action) {
+    return async (req, res) => {
+      if (!invitationService) {
+        return res.status(404).json({ error: "Not found" })
+      }
+      const { account, invitationId } = req.body || {}
+      if (!isIndex(account) || !isIndex(invitationId) || invitationId === 0) {
+        return res.status(400).json({ error: "Invalid account or invitationId" })
+      }
+      try {
+        const result = await invitationService[action](account, invitationId)
+        if (result.error) {
+          return res.status(400).json({ error: result.error })
+        }
+        return res.json({ ok: true })
+      } catch (err) {
+        return res.status(502).json({ error: err.message })
+      }
+    }
+  }
+
+  router.post("/invitations/accept", invitationAction("accept"))
+  router.post("/invitations/decline", invitationAction("decline"))
+
+  // Actions on all matching invitations of an account; a partial failure
+  // is reported with how many succeeded
+  function bulkInvitationAction(action, pastTense) {
+    return async (req, res) => {
+      if (!invitationService) {
+        return res.status(404).json({ error: "Not found" })
+      }
+      const { account } = req.body || {}
+      if (!isIndex(account)) {
+        return res.status(400).json({ error: "Invalid account" })
+      }
+      try {
+        const result = await invitationService[action](account)
+        if (result.error) {
+          return res.status(400).json({ error: result.error })
+        }
+        return res.status(result.ok ? 200 : 502).json({
+          ...result,
+          ...(result.ok
+            ? {}
+            : {
+                error: `${result.done} ${pastTense}, ${result.failed.length} failed: ${result.failed
+                  .map(({ repo, reason }) => `${repo} (${reason})`)
+                  .join("; ")}`,
+              }),
+        })
+      } catch (err) {
+        return res.status(502).json({ error: err.message })
+      }
+    }
+  }
+
+  router.post("/invitations/accept-all", bulkInvitationAction("acceptAll", "accepted"))
+  router.post(
+    "/invitations/decline-expired",
+    bulkInvitationAction("declineExpired", "removed"),
+  )
 
   return router
 }

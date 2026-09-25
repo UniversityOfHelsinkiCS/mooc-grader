@@ -26,7 +26,12 @@ function loadConfig(env = process.env) {
     basePath: normalizeBasePath(env.BASE_PATH),
     moocApiBase: "https://courses.mooc.fi/api/v0/main-frontend",
     githubApiBase: "https://api.github.com",
-    githubToken: env.GITHUB_TOKEN,
+    // Tried in order: the secondary is used when the primary is invalid,
+    // rate limited or cannot see a repository
+    githubCredentials: [
+      { label: "primary", token: env.GITHUB_TOKEN },
+      { label: "secondary", token: env.GITHUB_TOKEN_SECONDARY },
+    ].filter((credential) => credential.token),
     // Repository checks are cached so that reloading the page is cheap
     githubCacheTtlMs: 5 * 60 * 1000,
     githubConcurrency: 8,

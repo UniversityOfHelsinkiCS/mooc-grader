@@ -136,7 +136,7 @@ describe("the browser scripts", () => {
   test("send every request under the base path", () => {
     const fs = require("node:fs")
     const path = require("node:path")
-    for (const file of ["grading.js", "cheaters.js"]) {
+    for (const file of ["grading.js", "cheaters.js", "invites.js"]) {
       const source = fs.readFileSync(path.join(__dirname, "../../public", file), "utf8")
       assert.match(source, /document\.body\.dataset\.basePath/, file)
       // no fetch to a hard-coded absolute path

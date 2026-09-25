@@ -1,6 +1,10 @@
 const { test, describe } = require("node:test")
 const assert = require("node:assert/strict")
-const { withCache, withConcurrencyLimit } = require("../../src/infra/httpWrappers")
+const {
+  withCache,
+  withConcurrencyLimit,
+  credentialKey,
+} = require("../../src/infra/httpWrappers")
 
 // Fake http client whose responses resolve when release() is called
 function controllableHttp(responder = () => ({ status: 200, body: "ok" })) {
@@ -148,6 +152,35 @@ describe("withCache", () => {
 
     assert.equal(http.calls.length, 1)
     assert.equal(first, second)
+  })
+
+  test("caches separately for each Authorization header", async () => {
+    const http = instantHttp((url) => ({ status: 404, body: null }))
+    const seen = []
+    const tracking = {
+      get: (url, headers) => {
+        seen.push(headers.Authorization ?? "(none)")
+        return http.get(url, headers)
+      },
+    }
+    const cached = withCache(tracking, { ttlMs: 1000 })
+
+    await cached.get("/repo", { Authorization: "Bearer primary" })
+    await cached.get("/repo", { Authorization: "Bearer secondary" })
+    await cached.get("/repo", { Authorization: "Bearer primary" })
+    await cached.get("/repo")
+
+    // the primary's cached 404 is not served for the secondary's retry
+    assert.deepEqual(seen, ["Bearer primary", "Bearer secondary", "(none)"])
+  })
+
+  test("keys credentials by a hash, never by the token itself", () => {
+    const key = credentialKey("Bearer ghp_secret")
+    assert.equal(key.length, 16)
+    assert.ok(!key.includes("ghp_secret"))
+    assert.equal(key, credentialKey("Bearer ghp_secret"))
+    assert.notEqual(key, credentialKey("Bearer ghp_other"))
+    assert.equal(credentialKey(undefined), "-")
   })
 
   test("never caches POSTs", async () => {

@@ -11,7 +11,11 @@ const repoUrl = "https://github.com/alice/app"
 
 function client(routes, token = "secret") {
   const http = fakeHttp(routes)
-  return { http, github: createGithubClient({ http, baseUrl, token }) }
+  return { http, github: createGithubClient({
+      http,
+      baseUrl,
+      credentials: token ? [{ label: "primary", token }] : [],
+    }) }
 }
 
 describe("getGhaStatus", () => {
@@ -192,5 +196,116 @@ describe("getReadme", () => {
       "GET /readme": { status: 403, body: { message: "Go home" } },
     })
     assert.equal(await github.getReadme(repoUrl), null)
+  })
+})
+
+describe("token fallback", () => {
+  // Fake GitHub where each token sees its own set of URL fragments
+  function githubWith(answers) {
+    const calls = []
+    const http = {
+      get: async (url, headers) => {
+        const token = headers.Authorization?.replace("Bearer ", "") ?? "(none)"
+        calls.push(token)
+        const answer = answers[token] ?? { status: 404, body: { message: "Not Found" } }
+        return typeof answer === "function" ? answer(url) : answer
+      },
+    }
+    const github = createGithubClient({
+      http,
+      baseUrl,
+      credentials: [
+        { label: "primary", token: "primary" },
+        { label: "secondary", token: "secondary" },
+      ],
+    })
+    return { github, calls }
+  }
+  const runs = { status: 200, body: { workflow_runs: [{ event: "push", conclusion: "success" }] } }
+
+  test("uses only the primary token when it works", async () => {
+    const { github, calls } = githubWith({ primary: runs })
+    assert.equal((await github.getGhaStatus(repoUrl)).conclusion, "success")
+    assert.deepEqual(calls, ["primary"])
+  })
+
+  test("falls back to the secondary when the primary cannot see the repository", async () => {
+    const { github, calls } = githubWith({ secondary: runs })
+    const status = await github.getGhaStatus(repoUrl)
+    assert.equal(status.conclusion, "success")
+    assert.equal(status.repoExists, true)
+    assert.deepEqual(calls, ["primary", "secondary"])
+  })
+
+  test("falls back when the primary is rate limited or blocked", async (t) => {
+    silenceConsoleErrors(t)
+    for (const primary of [
+      { status: 429, body: { message: "Too Many Requests" } },
+      { status: 403, body: { message: "API rate limit exceeded" } },
+      { status: 403, body: { message: "Resource protected by organization SAML enforcement" } },
+    ]) {
+      const { github, calls } = githubWith({ primary, secondary: runs })
+      assert.equal((await github.getGhaStatus(repoUrl)).conclusion, "success")
+      assert.deepEqual(calls, ["primary", "secondary"])
+    }
+  })
+
+  test("stops using a token that GitHub rejects", async (t) => {
+    silenceConsoleErrors(t)
+    const { github, calls } = githubWith({
+      primary: { status: 401, body: { message: "Bad credentials" } },
+      secondary: runs,
+    })
+
+    await github.getGhaStatus(repoUrl)
+    await github.getGhaStatus(repoUrl)
+
+    assert.deepEqual(calls, ["primary", "secondary", "secondary"])
+    const logged = console.error.mock.calls.map((call) => call.arguments.join(" "))
+    assert.equal(logged.filter((line) => line.includes("primary token was rejected")).length, 1)
+  })
+
+  test("goes on without a token when both are rejected", async (t) => {
+    silenceConsoleErrors(t)
+    const { github, calls } = githubWith({
+      primary: { status: 401, body: {} },
+      secondary: { status: 401, body: {} },
+      "(none)": runs,
+    })
+
+    await github.getGhaStatus(repoUrl)
+    assert.equal((await github.getGhaStatus(repoUrl)).conclusion, "success")
+    assert.deepEqual(calls, ["primary", "secondary", "(none)"])
+  })
+
+  test("reports a repository neither account can see as missing", async () => {
+    const { github, calls } = githubWith({})
+    assert.equal(await github.repoExists(repoUrl), false)
+    assert.deepEqual(calls, ["primary", "secondary"])
+  })
+
+  test("does not retry errors that another token would not fix", async (t) => {
+    silenceConsoleErrors(t)
+    const { github, calls } = githubWith({ primary: { status: 502, body: {} } })
+    assert.equal((await github.getGhaStatus(repoUrl)).conclusion, "error")
+    assert.deepEqual(calls, ["primary"])
+  })
+
+  test("the secondary alone works like a single token", async (t) => {
+    const calls = []
+    const http = {
+      get: async (url, headers) => {
+        calls.push(headers.Authorization)
+        return runs
+      },
+    }
+    silenceConsoleErrors(t)
+    const github = createGithubClient({
+      http,
+      baseUrl,
+      credentials: [{ label: "secondary", token: "secondary" }],
+    })
+    await github.getGhaStatus(repoUrl)
+    assert.deepEqual(calls, ["Bearer secondary"])
   })
 })

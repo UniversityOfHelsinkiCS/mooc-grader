@@ -4,7 +4,11 @@ const { withCache, withConcurrencyLimit } = require("./src/infra/httpWrappers")
 const { loadConfig } = require("./src/config")
 const { createMoocClient } = require("./src/clients/moocClient")
 const { createGithubClient } = require("./src/clients/githubClient")
+const {
+  createGithubAccountsClient,
+} = require("./src/clients/githubAccountsClient")
 const { createCourseService } = require("./src/services/courseService")
+const { createInvitationService } = require("./src/services/invitationService")
 const { createApp } = require("./src/app")
 
 const config = loadConfig()
@@ -21,14 +25,23 @@ const github = createGithubClient({
     ttlMs: config.githubCacheTtlMs,
   }),
   baseUrl: config.githubApiBase,
-  token: config.githubToken,
+  credentials: config.githubCredentials,
 })
 const courseService = createCourseService({ mooc, github })
+// Invitations are not cached: accepting one must show up at once
+const invitationService = createInvitationService({
+  accounts: createGithubAccountsClient({
+    http,
+    baseUrl: config.githubApiBase,
+    credentials: config.githubCredentials,
+  }),
+})
 
 const app = createApp({
   tabs: config.tabs,
   mooc,
   courseService,
+  invitationService,
   auth: config.auth,
   basePath: config.basePath,
 })

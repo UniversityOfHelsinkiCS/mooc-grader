@@ -5,19 +5,37 @@ const {
   renderTabPage,
   renderCheatersPage,
 } = require("../views/pages")
+const { renderInvitesPage } = require("../views/invitesPage")
 const { findTab, findCheatersCourse } = require("../config/tabs")
 
 function errorPage(res, status, message) {
   return res.status(status).send(`<pre>${escapeHtml(message)}</pre>`)
 }
 
-function createPageRouter({ tabs, courseService, basePath }) {
+function createPageRouter({ tabs, courseService, invitationService, basePath }) {
   const router = express.Router()
 
   router.get("/", async (req, res) => {
     try {
-      const overviews = await Promise.all(tabs.map(courseService.fetchTabOverview))
-      res.send(renderOverviewPage(overviews, { basePath }))
+      const [overviews, invites] = await Promise.all([
+        Promise.all(tabs.map(courseService.fetchTabOverview)),
+        invitationService ? invitationService.fetchSummary() : null,
+      ])
+      res.send(renderOverviewPage(overviews, { basePath, invites }))
+    } catch (err) {
+      errorPage(res, 500, err.message)
+    }
+  })
+
+  router.get("/invites", async (req, res) => {
+    if (!invitationService) {
+      return errorPage(res, 404, "Not found")
+    }
+    try {
+      const accounts = await invitationService.fetchInvitations()
+      res.send(
+        renderInvitesPage(accounts, invitationService.recentlyAccepted(), { basePath }),
+      )
     } catch (err) {
       errorPage(res, 500, err.message)
     }

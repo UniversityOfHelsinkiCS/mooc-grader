@@ -22,6 +22,7 @@ function fakeHttp(routes) {
     calls,
     get: (url, headers) => handle("GET", url, headers),
     postJson: (url, payload, headers) => handle("POST", url, headers, payload),
+    send: (method, url, headers) => handle(method, url, headers),
   }
 }
 
