@@ -77,6 +77,8 @@ describe("readmeHasQrCode", () => {
     "<img src='https://api.qrserver.com/v1/create-qr-code/?data=exp://x'>",
     "Escanea el código QR con Expo Go",
     "Open https://qr.expo.dev/eas-update?projectId=1",
+    "exp://u.expo.dev/862a30a1/group/793177cd",
+    '<img alt="eas-update" src="https://github.com/user-attachments/assets/bf6db53e" />\nhttps://u.expo.dev/862a30a1',
   ]
   for (const text of positives) {
     test(`detects: ${text}`, () => {

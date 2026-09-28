@@ -24,9 +24,11 @@ function parseGitHubRepo(url) {
   }
 }
 
-// Quantifiers are bounded so that matching stays linear on crafted READMEs
+// Quantifiers are bounded so that matching stays linear on crafted READMEs.
+// An Expo EAS Update link (exp://, u.expo.dev) comes with the QR image Expo
+// generates, which may be uploaded without "qr" in its name or alt text.
 const QR_HINT_PATTERN =
-  /qr[-_ ]?code|qrcode|c[oó]digo[-_ ]?qr|escane[oa]?.{0,20}\bqr\b|\bqr\b.{0,20}(escane|c[oó]digo)|api\.qrserver\.com|chart\.googleapis\.com\/chart\?cht=qr|quickchart\.io\/qr|qr\.expo\.dev|goqr\.me|qrcode-monkey|qrcode\.show|[(!\[][^)\]]{0,300}qr[-_.]?(code)?\.(png|jpe?g|gif|svg|webp)/i
+  /qr[-_ ]?code|qrcode|c[oó]digo[-_ ]?qr|escane[oa]?.{0,20}\bqr\b|\bqr\b.{0,20}(escane|c[oó]digo)|api\.qrserver\.com|chart\.googleapis\.com\/chart\?cht=qr|quickchart\.io\/qr|qr\.expo\.dev|exp:\/\/|u\.expo\.dev|goqr\.me|qrcode-monkey|qrcode\.show|[(!\[][^)\]]{0,300}qr[-_.]?(code)?\.(png|jpe?g|gif|svg|webp)/i
 
 function readmeHasQrCode(text) {
   return QR_HINT_PATTERN.test(text)
