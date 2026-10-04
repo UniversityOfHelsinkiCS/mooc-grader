@@ -234,6 +234,17 @@ describe("renderOverviewPage", () => {
     ])
     assert.ok(html.includes("Could not load: graphql (cookie &lt;expired&gt;)"))
   })
+
+  test("links the Suotar pages", () => {
+    const html = renderOverviewPage([])
+    assert.ok(html.includes("<h2>Suotar</h2>"))
+    assert.ok(
+      html.includes('href="https://studies.cs.helsinki.fi/stats/courses/fullstackopen/admin/suotar"'),
+    )
+    assert.ok(
+      html.includes('href="https://study.cs.helsinki.fi/stats/courses/akateemiset-taidot/admin/suotar"'),
+    )
+  })
 })
 
 describe("renderCheatersPage", () => {

@@ -1,10 +1,15 @@
 const path = require("path")
 const express = require("express")
+const shibbolethCharsetMiddleware = require("unfuck-utf8-headers-middleware")
 const { createPageRouter } = require("./routes/pages")
 const { createApiRouter } = require("./routes/api")
 const { requireAllowedUser } = require("./middleware/requireAllowedUser")
 const { securityHeaders } = require("./middleware/securityHeaders")
 const { requireSameOrigin } = require("./middleware/requireSameOrigin")
+
+// Shibboleth sends header values as UTF-8 bytes but Node reads them as
+// latin1, which garbles scandinavian letters (e.g. "ä" becomes "Ã¤")
+const SHIBBOLETH_HEADERS = ["uid", "givenname", "sn", "mail", "hypersonstudentid"]
 
 // basePath: path prefix the app is served under, e.g. "/mooc-grader" when
 // the proxy forwards opetushallinto.cs.helsinki.fi/mooc-grader/... as is.
@@ -22,6 +27,7 @@ function createApp({
 
   const router = express.Router()
   router.use(securityHeaders)
+  router.use(shibbolethCharsetMiddleware(SHIBBOLETH_HEADERS))
   router.use(requireAllowedUser(auth))
   router.use(requireSameOrigin)
   router.use(express.json())

@@ -146,13 +146,34 @@ function renderOverviewRow(overview, basePath) {
   return `<tr><td><a href="${escapeHtml(tabUrl(overview.id, basePath))}">${escapeHtml(overview.name)}</a>${failed}</td><td>${overview.answerCount}</td><td>${flagged}</td></tr>`
 }
 
+const SUOTAR_LINKS = [
+  {
+    name: "Full stack",
+    url: "https://studies.cs.helsinki.fi/stats/courses/fullstackopen/admin/suotar",
+  },
+  {
+    name: "Akateemiset taidot",
+    url: "https://study.cs.helsinki.fi/stats/courses/akateemiset-taidot/admin/suotar",
+  },
+]
+
+function renderSuotarLinks() {
+  const items = SUOTAR_LINKS.map(
+    ({ name, url }) =>
+      `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)}</a></li>`,
+  ).join("")
+  return `<h2>Suotar</h2>
+<ul>${items}</ul>`
+}
+
 // invites: invitation summary per GitHub account, or null to leave it out
 function renderOverviewPage(overviews, { basePath = "", invites = null } = {}) {
   return layout({
     title: "Answers requiring attention",
     basePath,
     body: `<h1>Answers requiring attention</h1>
-<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>${invites ? renderInvitesSummary(invites, basePath) : ""}`,
+<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>${invites ? renderInvitesSummary(invites, basePath) : ""}
+${renderSuotarLinks()}`,
   })
 }
 

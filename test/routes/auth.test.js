@@ -36,7 +36,7 @@ describe("access control", () => {
         ],
         mooc,
         courseService,
-        auth: { allowedUids: ["mluukkai", "ousavola"], enforce: true },
+        auth: { allowedUids: ["mluukkai", "ousavola", "jääkäri"], enforce: true },
       }),
     )
   })
@@ -85,6 +85,13 @@ describe("access control", () => {
     })
     assert.equal(response.status, 403)
     assert.equal(upstreamCalls, 0)
+  })
+
+  test("decodes UTF-8 uids sent by Shibboleth", async () => {
+    // HTTP header values are bytes; send the UTF-8 encoding of the name
+    const raw = Buffer.from("jääkäri", "utf8").toString("latin1")
+    const response = await request("/static/styles.css", raw)
+    assert.equal(response.status, 200)
   })
 
   test("lets allowed users through", async () => {
