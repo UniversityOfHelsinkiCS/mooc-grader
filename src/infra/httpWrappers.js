@@ -36,6 +36,7 @@ function withConcurrencyLimit(http, max) {
 // Responses are cached per URL and Authorization header: what one token may
 // see (or not see) says nothing about another token. The header is kept only
 // as a hash, so the cache holds no tokens.
+// invalidate(matches) drops the entries whose URL matches.
 function credentialKey(authorization) {
   return authorization
     ? crypto.createHash("sha256").update(authorization).digest("hex").slice(0, 16)
@@ -82,7 +83,15 @@ function withCache(http, { ttlMs, now = Date.now, maxEntries = 1000 }) {
     return response
   }
 
-  return { get, postJson: http.postJson, send: http.send }
+  // Drops the cached responses (for every token) whose URL matches, e.g.
+  // after an accepted invitation turns a cached 404 into a 200
+  function invalidate(matches) {
+    for (const key of cache.keys()) {
+      if (matches(key.slice(key.indexOf(" ") + 1))) cache.delete(key)
+    }
+  }
+
+  return { get, postJson: http.postJson, send: http.send, invalidate }
 }
 
 module.exports = { withConcurrencyLimit, withCache, credentialKey }

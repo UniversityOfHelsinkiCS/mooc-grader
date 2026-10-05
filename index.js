@@ -35,6 +35,9 @@ const invitationService = createInvitationService({
     baseUrl: config.githubApiBase,
     credentials: config.githubCredentials,
   }),
+  // The repository checks of an accepted invitation must not show the
+  // cached "no access"
+  onAccepted: github.forgetRepo,
 })
 
 const app = createApp({

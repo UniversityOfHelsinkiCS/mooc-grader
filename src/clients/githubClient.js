@@ -156,7 +156,19 @@ function createGithubClient({ http, baseUrl, credentials = [] }) {
     }
   }
 
-  return { getGhaStatus, repoExists, getReadme }
+  // Drops cached responses about the repository ("owner/repo"), so that the
+  // next check sees e.g. access gained by accepting an invitation. GitHub
+  // names are case-insensitive.
+  function forgetRepo(fullName) {
+    if (!http.invalidate) return
+    const prefix = `${baseUrl}/repos/${fullName}`.toLowerCase()
+    http.invalidate((url) => {
+      const lower = url.toLowerCase()
+      return lower === prefix || lower.startsWith(`${prefix}/`)
+    })
+  }
+
+  return { getGhaStatus, repoExists, getReadme, forgetRepo }
 }
 
 module.exports = { createGithubClient, MAX_README_LENGTH }

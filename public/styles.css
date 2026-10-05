@@ -8,6 +8,11 @@ th { background: #f4f4f4; }
 a { color: #0969da; }
 .none { color: #888; font-style: italic; }
 .load-error { color: #cf222e; font-weight: 600; }
+/* Tab page: courses with nothing to do are shown only with the checkbox */
+.show-all { display: inline-block; margin-bottom: 0.5rem; cursor: pointer; user-select: none; }
+.course.quiet { display: none; }
+body:has(#show-all-courses:checked) .course.quiet { display: block; }
+body:has(#show-all-courses:checked) .all-quiet { display: none; }
 .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #fff; }
 .badge a { color: #fff; text-decoration: none; }
 .checkbox-ok { color: #2da44e; font-weight: 600; }

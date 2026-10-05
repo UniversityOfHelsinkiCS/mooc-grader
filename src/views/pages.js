@@ -177,20 +177,44 @@ ${renderSuotarLinks()}`,
   })
 }
 
+// A course needs attention when it has answers, flagged cheaters or could
+// not be loaded; the others are hidden unless "Show all courses" is checked
+function needsAttention(courseResult) {
+  return (
+    !!courseResult.error ||
+    courseResult.answers.length > 0 ||
+    courseResult.cheaterCount > 0
+  )
+}
+
+// The toggle is a plain checkbox that CSS reacts to, so it needs no script
+function renderCourseFilter(quietCount, total) {
+  if (quietCount === 0) return ""
+  const allQuiet =
+    quietCount === total
+      ? `<p class="none all-quiet">Nothing requires attention.</p>`
+      : ""
+  return `<label class="show-all"><input type="checkbox" id="show-all-courses"> Show all courses (${quietCount} without anything to do)</label>${allQuiet}`
+}
+
 // Tabs with completions list answers per user and use the full page width
 function renderTabPage(tab, results, { basePath = "" } = {}) {
   const completionTabId = tab.completion ? tab.id : null
-  const sections = results.map((courseResult) =>
-    courseResult.error
+  const sections = results.map((courseResult) => {
+    const html = courseResult.error
       ? renderLoadError(courseResult)
-      : renderCourseSection(courseResult, completionTabId, basePath),
-  )
+      : renderCourseSection(courseResult, completionTabId, basePath)
+    return needsAttention(courseResult)
+      ? `<section class="course">${html}</section>`
+      : `<section class="course quiet">${html}</section>`
+  })
+  const quietCount = results.filter((result) => !needsAttention(result)).length
 
   return layout({
     title: `${escapeHtml(tab.name)} - answers requiring attention`,
     basePath,
     bodyClass: completionTabId ? "compact" : null,
-    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${sections.join("")}${renderResetModal()}
+    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
   <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }

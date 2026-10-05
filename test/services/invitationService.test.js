@@ -133,6 +133,26 @@ describe("invitationService", () => {
     assert.deepEqual(await service.acceptAll(7), { error: "Unknown account" })
   })
 
+  test("reports each accepted repository so that cached checks can be dropped", async (t) => {
+    t.mock.method(console, "error", () => {})
+    const accounts = fakeAccounts({ 0: [invitation(1), invitation(2), invitation(3)] })
+    const accept = accounts.acceptInvitation
+    accounts.acceptInvitation = async (account, id) => {
+      if (id === 2) throw new Error("GitHub 502")
+      return accept(account, id)
+    }
+    const repos = []
+    const service = createInvitationService({
+      accounts,
+      onAccepted: (repo) => repos.push(repo),
+    })
+
+    await service.accept(0, 1)
+    await service.acceptAll(0)
+
+    assert.deepEqual(repos, ["student/repo1", "student/repo3"])
+  })
+
   test("accepting all goes on when one fails and remembers only the accepted", async (t) => {
     t.mock.method(console, "error", () => {})
     const accounts = fakeAccounts({ 0: [invitation(1), invitation(2)] })

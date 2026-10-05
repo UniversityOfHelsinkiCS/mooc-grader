@@ -4,6 +4,7 @@ const {
   createGithubClient,
   MAX_README_LENGTH,
 } = require("../../src/clients/githubClient")
+const { withCache } = require("../../src/infra/httpWrappers")
 const { fakeHttp, base64, silenceConsoleErrors } = require("../helpers")
 
 const baseUrl = "https://api.github.test"
@@ -146,6 +147,47 @@ describe("repoExists", () => {
     assert.equal(await ok.github.repoExists(repoUrl), true)
     assert.equal(await notFound.github.repoExists(repoUrl), false)
     assert.equal(await failing.github.repoExists(repoUrl), null)
+  })
+})
+
+describe("forgetRepo", () => {
+  test("drops cached answers about the repository only", async () => {
+    let status = 404
+    const calls = []
+    const http = withCache(
+      {
+        get: async (url) => {
+          calls.push(url)
+          return { status: url.endsWith("/alice/app") ? status : 404, body: {} }
+        },
+      },
+      { ttlMs: 60_000 },
+    )
+    const github = createGithubClient({
+      http,
+      baseUrl,
+      credentials: [{ label: "primary", token: "secret" }],
+    })
+
+    assert.equal(await github.repoExists(repoUrl), false)
+    assert.equal(await github.repoExists("https://github.com/alice/application"), false)
+    status = 200
+    assert.equal(await github.repoExists(repoUrl), false)
+
+    // GitHub names are case-insensitive
+    github.forgetRepo("Alice/App")
+    assert.equal(await github.repoExists(repoUrl), true)
+    assert.equal(await github.repoExists("https://github.com/alice/application"), false)
+    assert.deepEqual(calls, [
+      `${baseUrl}/repos/alice/app`,
+      `${baseUrl}/repos/alice/application`,
+      `${baseUrl}/repos/alice/app`,
+    ])
+  })
+
+  test("does nothing with an uncached http client", () => {
+    const { github } = client({})
+    github.forgetRepo("alice/app")
   })
 })
 

@@ -209,6 +209,41 @@ describe("renderTabPage", () => {
   })
 })
 
+describe("renderTabPage course filter", () => {
+  const fullstack = { id: "fs", name: "Full stack", courses: [] }
+
+  test("hides courses with nothing to do behind the show all toggle", () => {
+    const html = renderTabPage(fullstack, [
+      courseResult({ name: "extension", answers: [answer({ id: "a1", userId: "u1", texts: ["x"] })] }),
+      courseResult({ name: "graphql" }),
+      courseResult({ name: "ci", courseId: "c1", cheaterCount: 1 }),
+      { name: "psql", error: "boom" },
+    ])
+    const sections = [...html.matchAll(/<section class="([^"]+)"><h2>(\w+)/g)].map(
+      (m) => [m[2], m[1]],
+    )
+    assert.deepEqual(sections, [
+      ["extension", "course"],
+      ["graphql", "course quiet"],
+      ["ci", "course"],
+      ["psql", "course"],
+    ])
+    assert.ok(html.includes('id="show-all-courses"'))
+    assert.ok(html.includes("Show all courses (1 without anything to do)"))
+    assert.ok(!html.includes("Nothing requires attention."))
+  })
+
+  test("says so when no course needs attention", () => {
+    const html = renderTabPage(fullstack, [courseResult({ name: "graphql" })])
+    assert.ok(html.includes("Nothing requires attention."))
+  })
+
+  test("leaves the toggle out when every course needs attention", () => {
+    const html = renderTabPage(fullstack, [{ name: "psql", error: "boom" }])
+    assert.ok(!html.includes("show-all-courses"))
+  })
+})
+
 describe("renderOverviewPage", () => {
   test("links every tab with its totals", () => {
     const html = renderOverviewPage([

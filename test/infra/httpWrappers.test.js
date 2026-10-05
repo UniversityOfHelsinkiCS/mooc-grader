@@ -222,4 +222,19 @@ describe("withCache", () => {
 
     assert.deepEqual(http.calls, ["/a", "/b", "/c", "/a"])
   })
+
+  test("invalidate drops the matching entries for every token", async () => {
+    const http = instantHttp(() => ({ status: 404, body: null }))
+    const cached = withCache(http, { ttlMs: 1000 })
+
+    await cached.get("/repos/a", { Authorization: "Bearer one" })
+    await cached.get("/repos/a", { Authorization: "Bearer two" })
+    await cached.get("/repos/b")
+    cached.invalidate((url) => url === "/repos/a")
+    await cached.get("/repos/a", { Authorization: "Bearer one" })
+    await cached.get("/repos/a", { Authorization: "Bearer two" })
+    await cached.get("/repos/b")
+
+    assert.deepEqual(http.calls, ["/repos/a", "/repos/a", "/repos/b", "/repos/a", "/repos/a"])
+  })
 })

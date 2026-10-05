@@ -2,7 +2,13 @@
 // empty after a restart
 const MAX_REMEMBERED = 100
 
-function createInvitationService({ accounts, now = () => new Date() }) {
+// onAccepted(repo) is called with the "owner/repo" of each accepted
+// invitation, e.g. to drop cached "no access" answers about the repository
+function createInvitationService({
+  accounts,
+  onAccepted = () => {},
+  now = () => new Date(),
+}) {
   const accepted = []
   // Invitations GitHub kept pending after an accept (it answered with
   // success anyway); such an invitation is usually no longer valid, so the
@@ -154,6 +160,7 @@ function createInvitationService({ accounts, now = () => new Date() }) {
     for (const invitation of result.done) {
       remember(account, invitation)
       ignoredAccepts.delete(ignoredKey(account, invitation.id))
+      onAccepted(invitation.repo)
     }
     for (const invitation of result.ignored ?? []) {
       ignoredAccepts.add(ignoredKey(account, invitation.id))
