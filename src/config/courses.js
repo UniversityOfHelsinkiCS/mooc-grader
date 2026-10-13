@@ -90,6 +90,27 @@ const tabs = [
       },
     ],
   },
+  {
+    id: "docker",
+    name: "Docker",
+    courses: [
+      {
+        exerciseId: "de2c6f5e-8228-4771-86dd-dc272b5194d6",
+        name: "docker basics",
+        courseId: "f46ca98e-1a1f-465b-854f-52534d81a896",
+      },
+      {
+        exerciseId: "51edb5ec-acd3-421c-924e-6180c93b42c4",
+        name: "docker compose",
+        courseId: "f46ca98e-1a1f-465b-854f-52534d81a896",
+      },
+      {
+        exerciseId: "36bd1fad-de81-4880-837b-ea1451b75f06",
+        name: "optimization",
+        courseId: "f46ca98e-1a1f-465b-854f-52534d81a896",
+      },
+    ],
+  },
 ]
 
 module.exports = { tabs }

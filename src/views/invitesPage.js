@@ -106,7 +106,7 @@ function renderInvitesSummary(summary, basePath) {
               : `<tr><td>${accountName(account)}</td><td>${account.open}</td><td>${account.expired}</td></tr>`,
           )
           .join("")
-  return `<h2><a href="${escapeHtml(basePath)}/invites">GitHub invitations</a></h2>
+  return `<h1><a href="${escapeHtml(basePath)}/invites">GitHub invitations</a></h1>
 <table><thead><tr><th>Account</th><th>Open</th><th>Expired</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 

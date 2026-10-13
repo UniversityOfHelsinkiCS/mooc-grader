@@ -171,8 +171,8 @@ function renderOverviewPage(overviews, { basePath = "", invites = null } = {}) {
   return layout({
     title: "Answers requiring attention",
     basePath,
-    body: `<h1>Answers requiring attention</h1>
-<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>${invites ? renderInvitesSummary(invites, basePath) : ""}
+    body: `${invites ? `${renderInvitesSummary(invites, basePath)}\n` : ""}<h1>Answers requiring attention</h1>
+<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>
 ${renderSuotarLinks()}`,
   })
 }
