@@ -34,6 +34,12 @@ function answerChecks(item, { qr, gha, linkCount }) {
   return checks
 }
 
+// Correct: every check of the answer passed, the same as a PASS badge
+function isCorrect(item, courseResult) {
+  const checks = answerChecks(item, courseResult)
+  return checks.length > 0 && checks.every((check) => check.ok === true)
+}
+
 function optionalCell(show, value) {
   if (!show) return ""
   return value !== null && value !== undefined
@@ -62,6 +68,7 @@ function renderAnswerRow(item, courseResult, completionTabId) {
     linksMissing: item._linksOk === false,
     repoMissing: !!item._repoUrl && item._repoExists === false,
     ghaFailed: gha && isGhaFailed(item._ghaStatus?.conclusion),
+    correct: isCorrect(item, courseResult),
   })
 
   const userCells = completionTabId
@@ -215,6 +222,18 @@ function needsAttention(courseResult) {
   )
 }
 
+// Gives full points to every correct answer of the tab. Tabs with
+// completions submit them one by one instead.
+function renderAcceptCorrect(results, completionTabId) {
+  if (completionTabId) return ""
+  const count = results
+    .filter((result) => !result.error)
+    .flatMap((result) => result.answers.filter((item) => isCorrect(item, result)))
+    .length
+  if (count === 0) return ""
+  return `<p><button type="button" id="accept-correct" class="grade-btn grade-btn-green" data-count="${count}">Full points to all correct (${count})</button><span id="accept-correct-result" class="grade-result"></span></p>`
+}
+
 // The toggle is a plain checkbox that CSS reacts to, so it needs no script
 function renderCourseFilter(quietCount, total) {
   if (quietCount === 0) return ""
@@ -242,7 +261,7 @@ function renderTabPage(tab, results, { basePath = "" } = {}) {
     title: `${escapeHtml(tab.name)} - answers requiring attention`,
     basePath,
     bodyClass: completionTabId ? "compact" : null,
-    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
+    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderAcceptCorrect(results, completionTabId)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
   <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }

@@ -134,7 +134,7 @@ function gradeButton(action, cssClass, label, attributes) {
 // data-user-id carries the answer's user_exercise_state_id, except for the
 // Completion button where it is the user id and data-item-id is the answer.
 // completionTabId: the tab completions are submitted from; it replaces
-// Full points with Completion
+// Full points with Completion. correct: all checks of the answer passed
 function renderActionCell({
   itemId,
   exerciseId,
@@ -145,12 +145,17 @@ function renderActionCell({
   linksMissing = false,
   repoMissing = false,
   ghaFailed = false,
+  correct = false,
 }) {
   const target = { "user-id": itemId, "exercise-id": exerciseId }
 
+  // data-correct marks the answers "Full points to all correct" grades
   const fullPointsBtn = completionTabId
     ? ""
-    : gradeButton("FullPoints", null, "Full points", target)
+    : gradeButton("FullPoints", null, "Full points", {
+        ...target,
+        correct: correct && "true",
+      })
   const completionBtn =
     completionTabId && userId
       ? gradeButton("Completion", null, "Completion", {

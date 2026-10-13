@@ -173,6 +173,39 @@ describe("renderTabPage", () => {
     assert.ok(!html.includes('data-action="Completion"'))
   })
 
+  test("offers accepting the answers whose checks all passed", () => {
+    const passing = (id) => ({
+      ...answer({ id, userId: "u1", texts: [repo] }),
+      _repoUrl: repo,
+      _repoExists: true,
+      _ghaStatus: { conclusion: "success", branch: "main" },
+    })
+    const failing = { ...passing("a3"), _ghaStatus: { conclusion: "failure", branch: "main" } }
+    const unknown = { ...passing("a4"), _ghaStatus: null }
+    const noChecks = answer({ id: "a5", userId: "u1", texts: ["done"] })
+    const html = renderTabPage(fullstack, [
+      courseResult({ gha: true, answers: [passing("a1"), failing, unknown] }),
+      courseResult({ name: "other", answers: [passing("a2"), noChecks] }),
+      { name: "graphql", error: "down" },
+    ])
+
+    assert.ok(html.includes('data-count="2">Full points to all correct (2)</button>'))
+    const correct = [...html.matchAll(/data-user-id="(\w+)" data-exercise-id="ex1" data-correct="true"/g)]
+    assert.deepEqual(correct.map((m) => m[1]), ["a1", "a2"])
+  })
+
+  test("leaves accepting out when nothing is correct and on completion tabs", () => {
+    assert.ok(!renderTabPage(fullstack, [courseResult()]).includes("accept-correct"))
+    const item = {
+      ...answer({ id: "a1", userId: "u1", texts: [repo] }),
+      _repoUrl: repo,
+      _repoExists: true,
+    }
+    assert.ok(
+      !renderTabPage(kubernetes, [courseResult({ answers: [item] })]).includes("accept-correct"),
+    )
+  })
+
   test("a completion tab lists users with their grade and the tab id", () => {
     const item = {
       ...answer({ id: "a1", userId: "u1", texts: ["done"] }),
