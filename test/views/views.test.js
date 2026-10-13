@@ -8,6 +8,8 @@ const {
 } = require("../../src/views/cells")
 const {
   renderOverviewPage,
+  renderOverviewRow,
+  renderSuotarRow,
   renderTabPage,
   renderCheatersPage,
 } = require("../../src/views/pages")
@@ -245,40 +247,85 @@ describe("renderTabPage course filter", () => {
 })
 
 describe("renderOverviewPage", () => {
-  test("links every tab with its totals", () => {
-    const html = renderOverviewPage([
-      { id: "k8s", name: "Kubernetes", answerCount: 4, cheaterCount: 0, failed: [] },
-      { id: "fs", name: "Full stack", answerCount: 11, cheaterCount: 3, failed: [] },
-    ])
-    assert.ok(
-      html.includes('<tr><td><a href="/k8s">Kubernetes</a></td><td>4</td><td></td></tr>'),
+  test("is sent with a loading row per tab, account and Suotar link", () => {
+    const html = renderOverviewPage(
+      [
+        { id: "k8s", name: "Kubernetes" },
+        { id: "fs", name: "Full stack" },
+      ],
+      { basePath: "/g", invitationAccounts: [{ index: 0, label: "primary" }] },
     )
-    assert.ok(html.includes('<a href="/fs">Full stack</a>'))
-    assert.ok(html.includes('<td>11</td><td><span class="badge s-flagged">3 flagged</span></td>'))
+    const spinner = '<span class="spinner" role="status" aria-label="Loading"></span>'
+    assert.ok(
+      html.includes(
+        `<tr data-row-url="/g/overview/tabs/k8s"><td><a href="/g/k8s">Kubernetes</a></td><td>${spinner}</td><td>${spinner}</td></tr>`,
+      ),
+    )
+    assert.ok(html.includes('<tr data-row-url="/g/overview/tabs/fs">'))
+    assert.ok(
+      html.includes(`<tr data-row-url="/g/overview/invites/0"><td>primary</td><td>${spinner}</td>`),
+    )
+    assert.ok(html.includes('<tr data-row-url="/g/overview/suotar/0">'))
+    assert.ok(html.includes('<tr data-row-url="/g/overview/suotar/1">'))
+    assert.ok(html.includes('<script src="/g/static/overview.js"></script>'))
   })
 
-  test("names the courses that could not be counted", () => {
-    const html = renderOverviewPage([
-      {
-        id: "fs",
-        name: "Full stack",
-               answerCount: 1,
-        cheaterCount: 0,
-        failed: [{ name: "graphql", error: "cookie <expired>" }],
-      },
-    ])
-    assert.ok(html.includes("Could not load: graphql (cookie &lt;expired&gt;)"))
+  test("leaves the invitations out without an invitation service", () => {
+    const html = renderOverviewPage([])
+    assert.ok(!html.includes("GitHub invitations"))
+    assert.ok(html.includes("<h1>Suotar</h1>"))
   })
 
   test("links the Suotar pages", () => {
     const html = renderOverviewPage([])
-    assert.ok(html.includes("<h2>Suotar</h2>"))
+    assert.ok(html.includes("<th>Course</th><th>Completions</th>"))
     assert.ok(
       html.includes('href="https://studies.cs.helsinki.fi/stats/courses/fullstackopen/admin/suotar"'),
     )
     assert.ok(
       html.includes('href="https://study.cs.helsinki.fi/stats/courses/akateemiset-taidot/admin/suotar"'),
     )
+  })
+})
+
+describe("renderOverviewRow", () => {
+  test("shows the totals of a tab", () => {
+    assert.equal(
+      renderOverviewRow({ id: "k8s", name: "Kubernetes", answerCount: 4, cheaterCount: 0, failed: [] }, ""),
+      '<tr><td><a href="/k8s">Kubernetes</a></td><td>4</td><td></td></tr>',
+    )
+    const html = renderOverviewRow(
+      { id: "fs", name: "Full stack", answerCount: 11, cheaterCount: 3, failed: [] },
+      "",
+    )
+    assert.ok(html.includes('<td>11</td><td><span class="badge s-flagged">3 flagged</span></td>'))
+  })
+
+  test("names the courses that could not be counted", () => {
+    const html = renderOverviewRow(
+      {
+        id: "fs",
+        name: "Full stack",
+        answerCount: 1,
+        cheaterCount: 0,
+        failed: [{ name: "graphql", error: "cookie <expired>" }],
+      },
+      "",
+    )
+    assert.ok(html.includes("Could not load: graphql (cookie &lt;expired&gt;)"))
+  })
+})
+
+describe("renderSuotarRow", () => {
+  const link = { name: "Akateemiset taidot", url: "https://stats.test/suotar" }
+
+  test("shows the count of completions waiting for Suotar", () => {
+    assert.ok(renderSuotarRow(link, 4).endsWith("Akateemiset taidot</a></td><td>4</td></tr>"))
+    assert.ok(renderSuotarRow(link, 0).endsWith("</a></td><td>0</td></tr>"))
+  })
+
+  test("tells when the count could not be loaded", () => {
+    assert.ok(renderSuotarRow(link, null).includes('<td class="load-error">Could not load</td>'))
   })
 })
 

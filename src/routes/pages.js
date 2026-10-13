@@ -1,31 +1,80 @@
 const express = require("express")
 const { escapeHtml } = require("../views/html")
 const {
+  SUOTAR_LINKS,
   renderOverviewPage,
+  renderOverviewRow,
+  renderSuotarRow,
   renderTabPage,
   renderCheatersPage,
 } = require("../views/pages")
-const { renderInvitesPage } = require("../views/invitesPage")
+const {
+  renderInvitesPage,
+  renderInvitesSummaryRow,
+} = require("../views/invitesPage")
 const { findTab, findCheatersCourse } = require("../config/tabs")
 
 function errorPage(res, status, message) {
   return res.status(status).send(`<pre>${escapeHtml(message)}</pre>`)
 }
 
-function createPageRouter({ tabs, courseService, invitationService, basePath }) {
+// The rows of the overview page, loaded by its script one by one. A failure
+// is answered with the message as text, which the script shows in the row.
+function sendRow(res, loadRow) {
+  loadRow()
+    .then((row) => (row ? res.send(row) : res.status(404).type("text").send("Not found")))
+    .catch((err) => res.status(500).type("text").send(err.message))
+}
+
+function createPageRouter({
+  tabs,
+  courseService,
+  invitationService,
+  stats,
+  basePath,
+}) {
   const router = express.Router()
 
-  router.get("/", async (req, res) => {
-    try {
-      const [overviews, invites] = await Promise.all([
-        Promise.all(tabs.map(courseService.fetchTabOverview)),
-        invitationService ? invitationService.fetchSummary() : null,
-      ])
-      res.send(renderOverviewPage(overviews, { basePath, invites }))
-    } catch (err) {
-      errorPage(res, 500, err.message)
-    }
+  router.get("/", (req, res) => {
+    res.send(
+      renderOverviewPage(tabs, {
+        basePath,
+        invitationAccounts: invitationService ? invitationService.listAccounts() : null,
+      }),
+    )
   })
+
+  router.get("/overview/tabs/:tabId", (req, res) =>
+    sendRow(res, async () => {
+      const tab = findTab(tabs, req.params.tabId)
+      return tab && renderOverviewRow(await courseService.fetchTabOverview(tab), basePath)
+    }),
+  )
+
+  router.get("/overview/invites/:account", (req, res) =>
+    sendRow(res, async () => {
+      const account =
+        invitationService && /^\d+$/.test(req.params.account)
+          ? await invitationService.fetchAccountSummary(Number(req.params.account))
+          : null
+      return account && renderInvitesSummaryRow(account)
+    }),
+  )
+
+  // A count that cannot be loaded is shown as such, not as a failed row
+  router.get("/overview/suotar/:index", (req, res) =>
+    sendRow(res, async () => {
+      const link = /^\d+$/.test(req.params.index) ? SUOTAR_LINKS[Number(req.params.index)] : null
+      if (!link) return null
+      const count = stats
+        ? await stats.fetchCompletionCount(link.countUrl).catch((err) => {
+            console.error(err.message)
+            return null
+          })
+        : null
+      return renderSuotarRow(link, count)
+    }),
+  )
 
   router.get("/invites", async (req, res) => {
     if (!invitationService) {

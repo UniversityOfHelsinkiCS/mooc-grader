@@ -47,6 +47,24 @@ describe("invitationService", () => {
     ])
   })
 
+  test("summarizes one account, null for an unknown one", async () => {
+    const accounts = fakeAccounts({ 0: [], 1: [invitation(1, { expired: true })] })
+    const service = createInvitationService({ accounts })
+
+    assert.deepEqual(service.listAccounts(), [
+      { index: 0, label: "primary" },
+      { index: 1, label: "secondary" },
+    ])
+    assert.deepEqual(await service.fetchAccountSummary(1), {
+      index: 1,
+      label: "secondary",
+      login: "grader-bot",
+      open: 0,
+      expired: 1,
+    })
+    assert.equal(await service.fetchAccountSummary(5), null)
+  })
+
   test("one failing account does not hide the others", async (t) => {
     t.mock.method(console, "error", () => {})
     const accounts = fakeAccounts({ 1: [invitation(7)] }, { failing: [0] })

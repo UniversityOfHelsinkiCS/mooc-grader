@@ -11,6 +11,15 @@ function externalLink(url, content = escapeHtml(url)) {
   return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${content}</a>`
 }
 
+const SPINNER = `<span class="spinner" role="status" aria-label="Loading"></span>`
+
+// Placeholder row of the overview page: its script replaces the row with
+// the one loaded from url, so slow counts do not hold up the page.
+// nameCell is HTML.
+function loadingRow(url, nameCell, countColumns) {
+  return `<tr data-row-url="${escapeHtml(url)}"><td>${nameCell}</td>${`<td>${SPINNER}</td>`.repeat(countColumns)}</tr>`
+}
+
 // basePath is the path prefix the app is served under ("" at the root);
 // the page scripts read it from data-base-path for their requests
 function layout({
@@ -32,4 +41,4 @@ function layout({
 ${body}</body></html>`
 }
 
-module.exports = { escapeHtml, externalLink, layout }
+module.exports = { escapeHtml, externalLink, layout, loadingRow }

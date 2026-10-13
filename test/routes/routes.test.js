@@ -1,7 +1,7 @@
 const { test, describe, before, after } = require("node:test")
 const assert = require("node:assert/strict")
 const { createApp } = require("../../src/app")
-const { startServer } = require("../helpers")
+const { startServer, silenceConsoleErrors } = require("../helpers")
 
 const tabs = [
   {
@@ -294,5 +294,71 @@ describe("page errors", () => {
     } finally {
       await server.close()
     }
+  })
+})
+
+describe("overview rows", () => {
+  async function withServer({ courseService = {}, stats = null }, run) {
+    const server = await startServer(
+      createApp({ tabs, mooc: {}, courseService, stats, auth: noAuth }),
+    )
+    try {
+      await run((path) => fetch(`${server.url}${path}`))
+    } finally {
+      await server.close()
+    }
+  }
+
+  test("a tab row shows the totals of the tab", async () => {
+    const courseService = { fetchTabOverview: async (tab) => overview(tab) }
+    await withServer({ courseService }, async (get) => {
+      const response = await get("/overview/tabs/fs")
+      assert.equal(response.status, 200)
+      assert.equal(await response.text(), '<tr><td><a href="/fs">Full stack</a></td><td>3</td><td></td></tr>')
+      assert.equal((await get("/overview/tabs/nope")).status, 404)
+    })
+  })
+
+  test("a failing tab row answers the message as text", async () => {
+    const courseService = {
+      fetchTabOverview: async () => {
+        throw new Error("cookie <expired>")
+      },
+    }
+    await withServer({ courseService }, async (get) => {
+      const response = await get("/overview/tabs/fs")
+      assert.equal(response.status, 500)
+      assert.match(response.headers.get("content-type"), /^text\/plain/)
+      assert.equal(await response.text(), "cookie <expired>")
+    })
+  })
+
+  test("a Suotar row shows the count of its course", async () => {
+    const stats = {
+      fetchCompletionCount: async (url) => (url.includes("ofs2019") ? 5 : 2),
+    }
+    await withServer({ stats }, async (get) => {
+      assert.ok((await (await get("/overview/suotar/0")).text()).includes("Full stack</a></td><td>5</td></tr>"))
+      assert.ok(
+        (await (await get("/overview/suotar/1")).text()).includes("Akateemiset taidot</a></td><td>2</td></tr>"),
+      )
+      for (const index of ["2", "x", "-1"]) {
+        assert.equal((await get(`/overview/suotar/${index}`)).status, 404, index)
+      }
+    })
+  })
+
+  test("a Suotar count that fails is shown as not loaded", async (t) => {
+    silenceConsoleErrors(t)
+    const stats = {
+      fetchCompletionCount: async () => {
+        throw new Error("stats down")
+      },
+    }
+    await withServer({ stats }, async (get) => {
+      const response = await get("/overview/suotar/1")
+      assert.equal(response.status, 200)
+      assert.ok((await response.text()).includes('<td class="load-error">Could not load</td>'))
+    })
   })
 })

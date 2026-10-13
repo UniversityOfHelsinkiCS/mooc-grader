@@ -1,4 +1,4 @@
-const { escapeHtml, externalLink, layout } = require("./html")
+const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
 
 // "2026-09-25T10:15:00Z" -> "2026-09-25 10:15 UTC"
 function formatTime(iso) {
@@ -94,20 +94,30 @@ function renderInvitesPage(accounts, accepted, { basePath = "" } = {}) {
   })
 }
 
-// Section of the overview page; summary: invitationService.fetchSummary()
-function renderInvitesSummary(summary, basePath) {
+// Row of the overview page; account: invitationService.fetchAccountSummary()
+function renderInvitesSummaryRow(account) {
+  return account.error
+    ? `<tr><td>${accountName(account)}</td><td colspan="2" class="load-error">Could not load: ${escapeHtml(account.error)}</td></tr>`
+    : `<tr><td>${accountName(account)}</td><td>${account.open}</td><td>${account.expired}</td></tr>`
+}
+
+// Section of the overview page; the rows are loaded by the page script.
+// accounts: invitationService.listAccounts()
+function renderInvitesSummary(accounts, basePath) {
   const rows =
-    summary.length === 0
+    accounts.length === 0
       ? `<tr><td colspan="3" class="none">No GitHub token configured</td></tr>`
-      : summary
+      : accounts
           .map((account) =>
-            account.error
-              ? `<tr><td>${accountName(account)}</td><td colspan="2" class="load-error">Could not load: ${escapeHtml(account.error)}</td></tr>`
-              : `<tr><td>${accountName(account)}</td><td>${account.open}</td><td>${account.expired}</td></tr>`,
+            loadingRow(
+              `${basePath}/overview/invites/${account.index}`,
+              accountName(account),
+              2,
+            ),
           )
           .join("")
   return `<h1><a href="${escapeHtml(basePath)}/invites">GitHub invitations</a></h1>
-<table><thead><tr><th>Account</th><th>Open</th><th>Expired</th></tr></thead><tbody>${rows}</tbody></table>`
+<table class="summary"><thead><tr><th>Account</th><th>Open</th><th>Expired</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
-module.exports = { renderInvitesPage, renderInvitesSummary }
+module.exports = { renderInvitesPage, renderInvitesSummary, renderInvitesSummaryRow }

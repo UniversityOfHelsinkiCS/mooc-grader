@@ -59,20 +59,32 @@ function createInvitationService({
     )
   }
 
+  function summarize({ index, label, login, invitations, error }) {
+    return error
+      ? { index, label, error }
+      : {
+          index,
+          label,
+          login,
+          open: invitations.filter((invitation) => !invitation.expired).length,
+          expired: invitations.filter((invitation) => invitation.expired).length,
+        }
+  }
+
   // Counts for the overview page
   async function fetchSummary() {
-    const results = await fetchInvitations()
-    return results.map(({ index, label, login, invitations, error }) =>
-      error
-        ? { index, label, error }
-        : {
-            index,
-            label,
-            login,
-            open: invitations.filter((invitation) => !invitation.expired).length,
-            expired: invitations.filter((invitation) => invitation.expired).length,
-          },
-    )
+    return (await fetchInvitations()).map(summarize)
+  }
+
+  // [{ index, label }], known without asking GitHub
+  function listAccounts() {
+    return accounts.listAccounts()
+  }
+
+  // Counts of one account, or null for an unknown account
+  async function fetchAccountSummary(index) {
+    const account = accounts.findAccount(index)
+    return account ? summarize(await fetchAccount(account)) : null
   }
 
   // Only invitations that are currently pending for the account are acted
@@ -228,6 +240,8 @@ function createInvitationService({
   return {
     fetchInvitations,
     fetchSummary,
+    listAccounts,
+    fetchAccountSummary,
     accept,
     decline,
     acceptAll,

@@ -1,7 +1,7 @@
 const { getItemTexts } = require("../domain/answers")
 const { calculateGrade } = require("../domain/grading")
 const { isGhaFailed, isGhaPassing } = require("../domain/repository")
-const { escapeHtml, externalLink, layout } = require("./html")
+const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
 const { renderInvitesSummary } = require("./invitesPage")
 const {
   renderAnswerCell,
@@ -146,34 +146,62 @@ function renderOverviewRow(overview, basePath) {
   return `<tr><td><a href="${escapeHtml(tabUrl(overview.id, basePath))}">${escapeHtml(overview.name)}</a>${failed}</td><td>${overview.answerCount}</td><td>${flagged}</td></tr>`
 }
 
+// countUrl: stats API answering { count } of completions waiting for Suotar
 const SUOTAR_LINKS = [
   {
     name: "Full stack",
     url: "https://studies.cs.helsinki.fi/stats/courses/fullstackopen/admin/suotar",
+    countUrl: "https://studies.cs.helsinki.fi/stats/api/external/courses/ofs2019/new-completed",
   },
   {
     name: "Akateemiset taidot",
     url: "https://study.cs.helsinki.fi/stats/courses/akateemiset-taidot/admin/suotar",
+    countUrl: "https://study.cs.helsinki.fi/stats/external-api/courses/akateemiset-taidot",
   },
 ]
 
-function renderSuotarLinks() {
-  const items = SUOTAR_LINKS.map(
-    ({ name, url }) =>
-      `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(name)}</a></li>`,
-  ).join("")
-  return `<h2>Suotar</h2>
-<ul>${items}</ul>`
+function suotarLink({ name, url }) {
+  return externalLink(url, escapeHtml(name))
 }
 
-// invites: invitation summary per GitHub account, or null to leave it out
-function renderOverviewPage(overviews, { basePath = "", invites = null } = {}) {
+// count: null when it could not be loaded
+function renderSuotarRow(link, count) {
+  return Number.isInteger(count)
+    ? `<tr><td>${suotarLink(link)}</td><td>${count}</td></tr>`
+    : `<tr><td>${suotarLink(link)}</td><td class="load-error">Could not load</td></tr>`
+}
+
+function renderSuotarTable(basePath) {
+  const rows = SUOTAR_LINKS.map((link, index) =>
+    loadingRow(`${basePath}/overview/suotar/${index}`, suotarLink(link), 1),
+  ).join("")
+  return `<h1>Suotar</h1>
+<table class="summary"><thead><tr><th>Course</th><th>Completions</th></tr></thead><tbody>${rows}</tbody></table>`
+}
+
+// The page is sent at once with placeholder rows that the page script
+// fills in one by one. invitationAccounts: invitationService.listAccounts(),
+// or null to leave the section out
+function renderOverviewPage(tabs, { basePath = "", invitationAccounts = null } = {}) {
+  const tabRows = tabs
+    .map((tab) =>
+      loadingRow(
+        `${basePath}/overview/tabs/${encodeURIComponent(tab.id)}`,
+        `<a href="${escapeHtml(tabUrl(tab.id, basePath))}">${escapeHtml(tab.name)}</a>`,
+        2,
+      ),
+    )
+    .join("")
+  const invites = invitationAccounts
+    ? `${renderInvitesSummary(invitationAccounts, basePath)}\n`
+    : ""
   return layout({
     title: "Answers requiring attention",
     basePath,
-    body: `${invites ? `${renderInvitesSummary(invites, basePath)}\n` : ""}<h1>Answers requiring attention</h1>
-<table><thead><tr><th>Tab</th><th>Answers</th><th>Suspected cheaters</th></tr></thead><tbody>${overviews.map((overview) => renderOverviewRow(overview, basePath)).join("")}</tbody></table>
-${renderSuotarLinks()}`,
+    body: `${invites}<h1>Answers requiring attention</h1>
+<table class="summary"><thead><tr><th>Tab</th><th>Answers</th><th>Cheaters</th></tr></thead><tbody>${tabRows}</tbody></table>
+${renderSuotarTable(basePath)}
+  <script src="${escapeHtml(basePath)}/static/overview.js"></script>`,
   })
 }
 
@@ -246,4 +274,11 @@ function renderCheatersPage(courseName, cheaters, courseId, { basePath = "" } = 
   })
 }
 
-module.exports = { renderOverviewPage, renderTabPage, renderCheatersPage }
+module.exports = {
+  SUOTAR_LINKS,
+  renderOverviewPage,
+  renderOverviewRow,
+  renderSuotarRow,
+  renderTabPage,
+  renderCheatersPage,
+}

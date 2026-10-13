@@ -50,10 +50,15 @@ describe("invitations pages and API", () => {
     ]
     const invitationService = {
       fetchInvitations: async () => accounts,
-      fetchSummary: async () => [
-        { index: 0, label: "primary", login: "mluukkai", open: 1, expired: 1 },
-        { index: 1, label: "secondary", error: "GitHub 401: Bad credentials" },
+      listAccounts: () => [
+        { index: 0, label: "primary" },
+        { index: 1, label: "secondary" },
       ],
+      fetchAccountSummary: async (index) =>
+        [
+          { index: 0, label: "primary", login: "mluukkai", open: 1, expired: 1 },
+          { index: 1, label: "secondary", error: "GitHub 401: Bad credentials" },
+        ][index] ?? null,
       recentlyAccepted: () => [
         { repo: "student/done", url: null, account: "primary", acceptedAt: "2026-09-25T09:00:00.000Z" },
       ],
@@ -104,11 +109,26 @@ describe("invitations pages and API", () => {
       body: typeof body === "string" ? body : JSON.stringify(body),
     })
 
-  test("the overview shows a summary per account linking to the page", async () => {
+  test("the overview has a row per account linking to the page", async () => {
     const html = await (await get("/")).text()
     assert.ok(html.includes('<a href="/mooc-grader/invites">GitHub invitations</a>'))
-    assert.ok(html.includes("<td>mluukkai <small>(primary)</small></td><td>1</td><td>1</td>"))
-    assert.ok(html.includes("Could not load: GitHub 401: Bad credentials"))
+    assert.ok(html.includes('<tr data-row-url="/mooc-grader/overview/invites/0"><td>primary</td>'))
+    assert.ok(html.includes('<tr data-row-url="/mooc-grader/overview/invites/1"><td>secondary</td>'))
+  })
+
+  test("an account row shows the counts of the account", async () => {
+    assert.equal(
+      await (await get("/overview/invites/0")).text(),
+      "<tr><td>mluukkai <small>(primary)</small></td><td>1</td><td>1</td></tr>",
+    )
+    assert.ok(
+      (await (await get("/overview/invites/1")).text()).includes(
+        "Could not load: GitHub 401: Bad credentials",
+      ),
+    )
+    for (const account of ["2", "x"]) {
+      assert.equal((await get(`/overview/invites/${account}`)).status, 404, account)
+    }
   })
 
   test("the page lists invitations with the right action and escapes GitHub data", async () => {

@@ -7,6 +7,7 @@ const { createGithubClient } = require("./src/clients/githubClient")
 const {
   createGithubAccountsClient,
 } = require("./src/clients/githubAccountsClient")
+const { createStatsClient } = require("./src/clients/statsClient")
 const { createCourseService } = require("./src/services/courseService")
 const { createInvitationService } = require("./src/services/invitationService")
 const { createApp } = require("./src/app")
@@ -45,6 +46,7 @@ const app = createApp({
   mooc,
   courseService,
   invitationService,
+  stats: createStatsClient({ http }),
   auth: config.auth,
   basePath: config.basePath,
 })
