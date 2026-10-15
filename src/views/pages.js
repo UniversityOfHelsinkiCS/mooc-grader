@@ -1,5 +1,5 @@
 const { getItemTexts } = require("../domain/answers")
-const { calculateGrade } = require("../domain/grading")
+const { calculateGrade, RESUBMIT_INSTRUCTIONS } = require("../domain/grading")
 const { isGhaFailed, isGhaPassing } = require("../domain/repository")
 const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
 const { renderInvitesSummary } = require("./invitesPage")
@@ -135,6 +135,7 @@ function renderResetModal() {
         <option value="__other__">Other (write below)</option>
       </select>
       <textarea id="reset-reason-text" placeholder="Justification" hidden></textarea>
+      <p class="reset-instructions">Added to the message: ${escapeHtml(RESUBMIT_INSTRUCTIONS)}</p>
       <div class="modal-actions">
         <button type="button" id="reset-modal-cancel" class="grade-btn">Cancel</button>
         <button type="button" id="reset-modal-submit" class="grade-btn grade-btn-zero">Submit reset</button>

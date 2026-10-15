@@ -86,7 +86,25 @@ describe("buildGradingDecision", () => {
       justification: "tests must pass in GitHub",
     })
     assert.equal(payload.reset_exercise, true)
-    assert.equal(payload.justification, "tests must pass in GitHub")
+    assert.equal(
+      payload.justification,
+      "tests must pass in GitHub. After the fix resubmit your GitHub link and lock the chapter again.",
+    )
+  })
+
+  test("adds the resubmit instructions after a message's own punctuation", () => {
+    const { payload } = buildGradingDecision({
+      ...ids,
+      action: "Other",
+      justification: " The link is not a pull request! ",
+    })
+    assert.equal(
+      payload.justification,
+      "The link is not a pull request! After the fix resubmit your GitHub link and lock the chapter again.",
+    )
+    assert.deepEqual(buildGradingDecision({ ...ids, action: "Other", justification: "  " }), {
+      error: "Missing justification",
+    })
   })
 
   test("rejects unknown or missing actions instead of giving full points", () => {
@@ -116,7 +134,8 @@ describe("buildGradingDecision", () => {
       action: "Other",
       justification: "x".repeat(1000),
     })
-    assert.equal(payload.justification.length, 1000)
+    // The limit is on the reason given; the resubmit instructions come on top
+    assert.ok(payload.justification.startsWith(`${"x".repeat(1000)}. After the fix`))
   })
 
   test("refuses a reset without a justification", () => {

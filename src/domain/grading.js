@@ -57,6 +57,16 @@ const {
 
 const GRADING_ACTIONS = new Set(["FullPoints", "ZeroPoints", "Other"])
 
+// Ends the message of every reset, whatever its reason
+const RESUBMIT_INSTRUCTIONS =
+  "After the fix resubmit your GitHub link and lock the chapter again."
+
+function withResubmitInstructions(justification) {
+  const reason = justification.trim()
+  const ending = /[.!?]$/.test(reason) ? "" : "."
+  return `${reason}${ending} ${RESUBMIT_INSTRUCTIONS}`
+}
+
 // "Other" resets the exercise and requires a justification
 function buildGradingDecision({
   user_exercise_state_id,
@@ -71,6 +81,9 @@ function buildGradingDecision({
     return { error: "Invalid action" }
   }
   if (action === "Other") {
+    if (typeof justification === "string" && !justification.trim()) {
+      return { error: "Missing justification" }
+    }
     if (!justification) {
       return { error: "Missing justification" }
     }
@@ -90,7 +103,7 @@ function buildGradingDecision({
       exercise_id,
       action,
       manual_points: null,
-      justification: action === "Other" ? justification : null,
+      justification: action === "Other" ? withResubmitInstructions(justification) : null,
       hidden: false,
       reset_exercise: action === "Other",
     },
@@ -135,4 +148,5 @@ module.exports = {
   totalCoursePoints,
   buildGradingDecision,
   buildCompletion,
+  RESUBMIT_INSTRUCTIONS,
 }
