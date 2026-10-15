@@ -28,6 +28,8 @@ body:has(#show-all-courses:checked) .all-quiet { display: none; }
 .qr-ok { color: #2da44e; font-weight: 600; }
 .qr-missing { color: #cf222e; font-weight: 600; }
 .links-ok { color: #2da44e; font-weight: 600; }
+.pr-approved { color: #2da44e; font-weight: 600; }
+.pr-not-approved { color: #656d76; }
 .links-missing { color: #cf222e; font-weight: 600; }
 .checks-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #fff; }
 .checks-pass { background: #2da44e; }

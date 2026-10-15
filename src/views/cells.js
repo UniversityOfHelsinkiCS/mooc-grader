@@ -134,7 +134,9 @@ function gradeButton(action, cssClass, label, attributes) {
 // data-user-id carries the answer's user_exercise_state_id, except for the
 // Completion button where it is the user id and data-item-id is the answer.
 // completionTabId: the tab completions are submitted from; it replaces
-// Full points with Completion. correct: all checks of the answer passed
+// Full points with Completion. correct: all checks of the answer passed.
+// prUrl: pull request of the answer; Approve PR approves it and gives full
+// points. prApproved: the pull request is already approved
 function renderActionCell({
   itemId,
   exerciseId,
@@ -146,6 +148,8 @@ function renderActionCell({
   repoMissing = false,
   ghaFailed = false,
   correct = false,
+  prUrl = null,
+  prApproved = false,
 }) {
   const target = { "user-id": itemId, "exercise-id": exerciseId }
 
@@ -180,9 +184,16 @@ function renderActionCell({
     target,
   )
 
+  const approvePrBtn = prUrl
+    ? gradeButton("ApprovePr", prApproved ? "grade-btn-green grade-btn-selected" : "grade-btn-green", "Approve PR", {
+        "pr-url": prUrl,
+        "exercise-id": exerciseId,
+      })
+    : ""
+
   const buttons = completionTabId
     ? `${completionBtn}${zeroPointsBtn}${resetBtn}${fullPointsBtn}`
-    : `${fullPointsBtn}${resetBtn}${zeroPointsBtn}`
+    : `${approvePrBtn}${fullPointsBtn}${resetBtn}${zeroPointsBtn}`
 
   return `<td><span class="grade-actions">${buttons}</span><span class="grade-result"></span></td>`
 }

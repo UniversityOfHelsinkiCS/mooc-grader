@@ -2,6 +2,8 @@ const { test, describe } = require("node:test")
 const assert = require("node:assert/strict")
 const {
   parseGitHubRepo,
+  parsePullRequestUrl,
+  approvingReviewers,
   readmeHasQrCode,
   extractReadmeUrls,
   readmeLinksOk,
@@ -10,6 +12,50 @@ const {
   isGhaPassing,
   ghaOutcome,
 } = require("../../src/domain/repository")
+
+describe("parsePullRequestUrl", () => {
+  test("parses owner, repo and number", () => {
+    assert.deepEqual(
+      parsePullRequestUrl("https://github.com/UniversityOfHelsinkiCS/apparaatti/pull/272"),
+      { owner: "UniversityOfHelsinkiCS", repo: "apparaatti", number: 272 },
+    )
+    assert.deepEqual(
+      parsePullRequestUrl(" https://github.com/alice/app.js/pull/1/files "),
+      { owner: "alice", repo: "app.js", number: 1 },
+    )
+  })
+
+  test("rejects links that are not pull requests", () => {
+    assert.equal(parsePullRequestUrl("https://github.com/alice/app"), null)
+    assert.equal(parsePullRequestUrl("https://github.com/alice/app/issues/1"), null)
+    assert.equal(parsePullRequestUrl("https://github.com/alice/../pull/1"), null)
+    assert.equal(parsePullRequestUrl("https://evil.test/github.com/a/b/pull/1"), null)
+    assert.equal(parsePullRequestUrl("see https://github.com/a/b/pull/1"), null)
+    assert.equal(parsePullRequestUrl(null), null)
+  })
+})
+
+describe("approvingReviewers", () => {
+  const review = (login, state) => ({ user: { login }, state })
+
+  test("counts the latest verdict of each reviewer", () => {
+    assert.deepEqual(
+      approvingReviewers([
+        review("alice", "APPROVED"),
+        review("alice", "COMMENTED"),
+        review("bob", "APPROVED"),
+        review("bob", "CHANGES_REQUESTED"),
+        review("carol", "CHANGES_REQUESTED"),
+        review("carol", "APPROVED"),
+        review("dave", "APPROVED"),
+        review("dave", "DISMISSED"),
+        review("erin", "COMMENTED"),
+        { state: "APPROVED" },
+      ]),
+      ["alice", "carol"],
+    )
+  })
+})
 
 describe("parseGitHubRepo", () => {
   test("parses owner and repo", () => {

@@ -150,6 +150,33 @@ describe("repoExists", () => {
   })
 })
 
+describe("getPullRequestApprovals", () => {
+  const prUrl = "https://github.com/alice/app/pull/3"
+
+  test("returns the logins that approved the pull request", async () => {
+    const { github, http } = client({
+      "GET /repos/alice/app/pulls/3/reviews": {
+        status: 200,
+        body: [
+          { user: { login: "mluukkai" }, state: "APPROVED" },
+          { user: { login: "bob" }, state: "COMMENTED" },
+        ],
+      },
+    })
+
+    assert.deepEqual(await github.getPullRequestApprovals(prUrl), ["mluukkai"])
+    assert.equal(http.calls[0].url, `${baseUrl}/repos/alice/app/pulls/3/reviews?per_page=100`)
+  })
+
+  test("returns null when the reviews cannot be read", async (t) => {
+    silenceConsoleErrors(t)
+    const { github } = client({})
+
+    assert.equal(await github.getPullRequestApprovals(prUrl), null)
+    assert.equal(await github.getPullRequestApprovals("https://github.com/alice/app"), null)
+  })
+})
+
 describe("forgetRepo", () => {
   test("drops cached answers about the repository only", async () => {
     let status = 404

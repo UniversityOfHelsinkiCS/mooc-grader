@@ -13,6 +13,8 @@
 // gha: GitHub Actions status of the repository
 // qr: README must contain a QR code
 // linkCount: README must contain this many links, one of them to GitHub
+// pr: the answer is a pull request link, not a repository: no repository
+//   checks are run
 const tabs = [
   {
     id: "kubernetes",
@@ -108,6 +110,17 @@ const tabs = [
         exerciseId: "36bd1fad-de81-4880-837b-ea1451b75f06",
         name: "optimization",
         courseId: "f46ca98e-1a1f-465b-854f-52534d81a896",
+      },
+    ],
+  },
+  {
+    id: "pull-requests",
+    name: "Pull requests",
+    courses: [
+      {
+        exerciseId: "d6bc57d4-847c-4957-b83b-505eae491687",
+        name: "ci pull request",
+        pr: true,
       },
     ],
   },

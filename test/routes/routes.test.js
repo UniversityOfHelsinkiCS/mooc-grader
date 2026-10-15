@@ -15,6 +15,7 @@ const tabs = [
     name: "Full stack",
     courses: [
       { exerciseId: "ex1", name: "graphql", gha: true, courseId: "c1", cheaters: true },
+      { exerciseId: "pr-ex", name: "pull request", pr: true },
     ],
   },
   {
@@ -53,6 +54,7 @@ describe("routes", () => {
   let server
   let upstream
   const moocCalls = []
+  const prCalls = []
 
   before(async () => {
     const record = (name) => async (...args) => {
@@ -69,8 +71,14 @@ describe("routes", () => {
       fetchTabOverview: async (tab) => overview(tab),
       fetchCheatersData: async (course) => ({ name: course.name, cheaters: [] }),
     }
+    const pullRequestService = {
+      approve: async (prUrl) => {
+        prCalls.push(prUrl)
+        return prUrl.includes("/pull/") ? { ok: true, label: "primary" } : { error: "Not a GitHub pull request link" }
+      },
+    }
     server = await startServer(
-      createApp({ tabs, mooc, courseService, auth: noAuth }),
+      createApp({ tabs, mooc, courseService, pullRequestService, auth: noAuth }),
     )
   })
 
@@ -194,6 +202,34 @@ describe("routes", () => {
         assert.match((await response.json()).error, /Invalid grade/)
       }
       assert.equal(moocCalls.length, 0)
+    })
+  })
+
+  describe("POST /approve-pr", () => {
+    test("approves the pull request of a pr exercise", async () => {
+      const prUrl = "https://github.com/alice/app/pull/3"
+      const res = await post("/approve-pr", { exercise_id: "pr-ex", pr_url: prUrl })
+      assert.equal(res.status, 200)
+      assert.deepEqual(await res.json(), { ok: true, account: "primary" })
+      assert.deepEqual(prCalls.at(-1), prUrl)
+    })
+
+    test("rejects exercises that are not pull request exercises", async () => {
+      const before = prCalls.length
+      for (const exerciseId of ["ex1", "nope", undefined]) {
+        const res = await post("/approve-pr", {
+          exercise_id: exerciseId,
+          pr_url: "https://github.com/alice/app/pull/3",
+        })
+        assert.equal(res.status, 400)
+      }
+      assert.equal(prCalls.length, before)
+    })
+
+    test("relays the service's error", async () => {
+      const res = await post("/approve-pr", { exercise_id: "pr-ex", pr_url: "https://github.com/alice/app" })
+      assert.equal(res.status, 400)
+      assert.deepEqual(await res.json(), { error: "Not a GitHub pull request link" })
     })
   })
 

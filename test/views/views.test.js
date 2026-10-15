@@ -128,6 +128,19 @@ describe("renderActionCell", () => {
     )
   })
 
+  test("a pull request answer is offered Approve PR first", () => {
+    const html = renderActionCell({
+      itemId: "a1",
+      exerciseId: "ex1",
+      prUrl: "https://github.com/alice/app/pull/3",
+    })
+    const actions = [...html.matchAll(/data-action="(\w+)"/g)].map((m) => m[1])
+    assert.deepEqual(actions, ["ApprovePr", "FullPoints", "Reset", "ZeroPoints"])
+    assert.ok(
+      html.includes('data-pr-url="https://github.com/alice/app/pull/3" data-exercise-id="ex1"'),
+    )
+  })
+
   test("flags the failed checks on the reset button for the reason picker", () => {
     const html = renderActionCell({
       itemId: "a1",
@@ -171,6 +184,27 @@ describe("renderTabPage", () => {
     assert.ok(html.includes('title="Repo: OK, GHA: missing"'))
     assert.ok(html.includes("<td>a1</td>"))
     assert.ok(!html.includes('data-action="Completion"'))
+  })
+
+  test("shows whether the pull request of an answer is approved", () => {
+    const prAnswer = (id, approvedBy) => ({
+      ...answer({ id, userId: "u1", texts: [`https://github.com/alice/app/pull/${id}`] }),
+      _prUrl: `https://github.com/alice/app/pull/${id}`,
+      _prApprovedBy: approvedBy,
+    })
+    const html = renderTabPage(fullstack, [
+      courseResult({
+        answers: [prAnswer("1", ["mluukkai"]), prAnswer("2", []), prAnswer("3", null)],
+      }),
+    ])
+
+    assert.ok(html.includes('<span class="pr-approved">approved by mluukkai</span>'))
+    assert.equal(html.match(/pr-not-approved/g).length, 1)
+    const approveButtons = html.match(/<button[^>]*data-action="ApprovePr"[^>]*>/g)
+    assert.equal(approveButtons.length, 3)
+    assert.ok(approveButtons[0].includes("grade-btn-selected"))
+    assert.ok(!approveButtons[1].includes("grade-btn-selected"))
+    assert.ok(!approveButtons[2].includes("grade-btn-selected"))
   })
 
   test("offers accepting the answers whose checks all passed", () => {

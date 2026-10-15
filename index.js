@@ -10,6 +10,7 @@ const {
 const { createStatsClient } = require("./src/clients/statsClient")
 const { createCourseService } = require("./src/services/courseService")
 const { createInvitationService } = require("./src/services/invitationService")
+const { createPullRequestService } = require("./src/services/pullRequestService")
 const { createApp } = require("./src/app")
 
 const config = loadConfig()
@@ -30,12 +31,13 @@ const github = createGithubClient({
 })
 const courseService = createCourseService({ mooc, github })
 // Invitations are not cached: accepting one must show up at once
+const accounts = createGithubAccountsClient({
+  http,
+  baseUrl: config.githubApiBase,
+  credentials: config.githubCredentials,
+})
 const invitationService = createInvitationService({
-  accounts: createGithubAccountsClient({
-    http,
-    baseUrl: config.githubApiBase,
-    credentials: config.githubCredentials,
-  }),
+  accounts,
   // The repository checks of an accepted invitation must not show the
   // cached "no access"
   onAccepted: github.forgetRepo,
@@ -46,6 +48,11 @@ const app = createApp({
   mooc,
   courseService,
   invitationService,
+  // The approval must show up at once on the tab, not the cached reviews
+  pullRequestService: createPullRequestService({
+    accounts,
+    onApproved: github.forgetRepo,
+  }),
   stats: createStatsClient({ http }),
   auth: config.auth,
   basePath: config.basePath,

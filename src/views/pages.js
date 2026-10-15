@@ -47,6 +47,15 @@ function optionalCell(show, value) {
     : "<td></td>"
 }
 
+// approvedBy: logins that have approved the pull request; undefined or null
+// when there is no pull request or its reviews could not be read
+function renderPrApproval(approvedBy) {
+  if (!approvedBy) return ""
+  return approvedBy.length > 0
+    ? ` <span class="pr-approved">approved by ${escapeHtml(approvedBy.join(", "))}</span>`
+    : ` <span class="pr-not-approved">not approved</span>`
+}
+
 function renderAnswerRow(item, courseResult, completionTabId) {
   const { exerciseId, gha, linkCount } = courseResult
   const grade = calculateGrade(item._coursePoints)
@@ -69,8 +78,11 @@ function renderAnswerRow(item, courseResult, completionTabId) {
     repoMissing: !!item._repoUrl && item._repoExists === false,
     ghaFailed: gha && isGhaFailed(item._ghaStatus?.conclusion),
     correct: isCorrect(item, courseResult),
+    prUrl: item._prUrl,
+    prApproved: item._prApprovedBy?.length > 0,
   })
 
+  const approval = renderPrApproval(item._prApprovedBy)
   const userCells = completionTabId
     ? [
         optionalCell(true, item.user_id),
@@ -81,7 +93,7 @@ function renderAnswerRow(item, courseResult, completionTabId) {
       ].join("")
     : `<td>${escapeHtml(item.id)}</td>`
 
-  return `<tr>${userCells}<td>${answerCell}</td>${renderGhaCell(gha, item._ghaStatus)}${renderChecksCell(answerChecks(item, courseResult))}${actionCell}</tr>`
+  return `<tr>${userCells}<td>${answerCell}${approval}</td>${renderGhaCell(gha, item._ghaStatus)}${renderChecksCell(answerChecks(item, courseResult))}${actionCell}</tr>`
 }
 
 function renderCourseSection(courseResult, completionTabId, basePath) {

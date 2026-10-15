@@ -24,6 +24,34 @@ function parseGitHubRepo(url) {
   }
 }
 
+// A pull request link: https://github.com/<owner>/<repo>/pull/<number>, with
+// nothing but an optional subpage (e.g. /files) or query after the number
+const PULL_REQUEST_URL_PATTERN =
+  /^https:\/\/github\.com\/([A-Za-z0-9_-]+)\/([A-Za-z0-9._-]+)\/pull\/(\d{1,9})(?:[/?#]\S*)?$/
+
+// { owner, repo, number } or null
+function parsePullRequestUrl(url) {
+  const match = String(url ?? "").trim().match(PULL_REQUEST_URL_PATTERN)
+  if (!match || !isPlainSegment(match[2])) return null
+  return { owner: match[1], repo: match[2], number: Number(match[3]) }
+}
+
+// Logins whose latest review of a pull request is an approval, as GitHub
+// counts them: a comment does not change a reviewer's verdict, a dismissal
+// or a request for changes withdraws an approval. Reviews come oldest first.
+function approvingReviewers(reviews) {
+  const verdicts = new Map()
+  for (const review of reviews) {
+    const login = review.user?.login
+    if (login && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) {
+      verdicts.set(login, review.state)
+    }
+  }
+  return [...verdicts]
+    .filter(([, state]) => state === "APPROVED")
+    .map(([login]) => login)
+}
+
 // Quantifiers are bounded so that matching stays linear on crafted READMEs.
 // An Expo EAS Update link (exp://, u.expo.dev) comes with the QR image Expo
 // generates, which may be uploaded without "qr" in its name or alt text.
@@ -121,6 +149,8 @@ function ghaOutcome(conclusion) {
 
 module.exports = {
   parseGitHubRepo,
+  parsePullRequestUrl,
+  approvingReviewers,
   QR_HINT_PATTERN,
   readmeHasQrCode,
   extractReadmeUrls,

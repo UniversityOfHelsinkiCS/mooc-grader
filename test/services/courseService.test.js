@@ -40,6 +40,10 @@ function fakeClients({
       githubCalls.push(["exists", url])
       return !url.includes("private")
     },
+    getPullRequestApprovals: async (url) => {
+      githubCalls.push(["approvals", url])
+      return ["mluukkai"]
+    },
     getReadme: async (url) => {
       githubCalls.push(["readme", url])
       return url in readmes ? readmes[url] : { found: false }
@@ -109,6 +113,28 @@ describe("fetchCourseData", () => {
     assert.equal(readmeCalls.length, 1)
     assert.equal(result.answers[0]._qrExists, true)
     assert.equal(result.answers[0]._linksOk, true)
+  })
+
+  test("looks up only the approvals of pull request answers", async () => {
+    const prUrl = "https://github.com/alice/app/pull/1"
+    const clients = fakeClients({
+      answers: [
+        answer({ id: "a1", userId: "u1", texts: [prUrl] }),
+        answer({ id: "a2", userId: "u2", texts: ["https://github.com/alice/app"] }),
+      ],
+    })
+    const service = createCourseService(clients)
+
+    const result = await service.fetchCourseData({ exerciseId: "ex", name: "pr", pr: true })
+
+    const [first, second] = result.answers
+    assert.equal(first._repoUrl, null)
+    assert.equal(first._repoExists, undefined)
+    assert.equal(first._prUrl, prUrl)
+    assert.deepEqual(first._prApprovedBy, ["mluukkai"])
+    assert.equal(second._prUrl, null)
+    assert.equal(second._prApprovedBy, null)
+    assert.deepEqual(clients.githubCalls, [["approvals", prUrl]])
   })
 
   test("runs only the checks enabled for the course", async () => {

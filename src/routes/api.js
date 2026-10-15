@@ -27,7 +27,7 @@ function isIndex(value) {
   return Number.isInteger(value) && value >= 0
 }
 
-function createApiRouter({ tabs, mooc, invitationService }) {
+function createApiRouter({ tabs, mooc, invitationService, pullRequestService }) {
   const router = express.Router()
 
   router.post("/grade", (req, res) => {
@@ -68,6 +68,27 @@ function createApiRouter({ tabs, mooc, invitationService }) {
     return relay(res, () =>
       mooc.postCompletions(completion.courseInstanceId, payload),
     )
+  })
+
+  // Only pull requests of pr courses are approved; the link itself is
+  // checked by the service
+  router.post("/approve-pr", async (req, res) => {
+    if (!pullRequestService) {
+      return res.status(404).json({ error: "Not found" })
+    }
+    const { exercise_id: exerciseId, pr_url: prUrl } = req.body || {}
+    if (!findCourseByExercise(tabs, exerciseId)?.pr) {
+      return res.status(400).json({ error: "Unknown exercise_id or not a pull request exercise" })
+    }
+    try {
+      const result = await pullRequestService.approve(prUrl)
+      if (result.error) {
+        return res.status(400).json({ error: result.error })
+      }
+      return res.json({ ok: true, account: result.label })
+    } catch (err) {
+      return res.status(502).json({ error: err.message })
+    }
   })
 
   function cheaterAction(action) {

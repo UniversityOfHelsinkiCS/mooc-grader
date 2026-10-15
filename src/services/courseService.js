@@ -1,5 +1,6 @@
 const { getItemTexts, findGithubText } = require("../domain/answers")
 const {
+  parsePullRequestUrl,
   readmeHasQrCode,
   extractReadmeUrls,
   readmeLinksOk,
@@ -20,6 +21,10 @@ async function settleCourses(courses, load) {
     console.error(`Loading ${name} failed:`, error)
     return { name, error }
   })
+}
+
+function findPullRequestUrl(texts) {
+  return texts.find((text) => parsePullRequestUrl(text)) ?? null
 }
 
 async function mapByUserId(userIds, fetchForUser) {
@@ -51,6 +56,12 @@ function createCourseService({ mooc, github }) {
   // Runs the repository checks enabled for the course; every GitHub resource
   // is fetched at most once per answer and independent calls run in parallel
   async function checkRepository(item, course) {
+    if (course.pr) {
+      item._prApprovedBy = item._prUrl
+        ? await github.getPullRequestApprovals(item._prUrl)
+        : null
+      return
+    }
     const repoUrl = item._repoUrl
     const needsReadme = course.qr || course.linkCount
 
@@ -105,7 +116,10 @@ function createCourseService({ mooc, github }) {
       const details = userDetailsById.get(item.user_id)
       item._userName = details?.name ?? null
       item._userEmail = details?.email ?? null
-      item._repoUrl = findGithubText(getItemTexts(item))
+      // A pull request link would pass as a repository and its "Repo" check
+      // alone would make the answer correct
+      item._repoUrl = course.pr ? null : findGithubText(getItemTexts(item))
+      item._prUrl = course.pr ? findPullRequestUrl(getItemTexts(item)) : null
     }
 
     const [cheaterCount] = await Promise.all([

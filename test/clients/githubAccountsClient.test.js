@@ -147,4 +147,33 @@ describe("githubAccountsClient", () => {
       /GitHub 401: Bad credentials/,
     )
   })
+
+  test("approves a pull request with the account's own token", async () => {
+    const { accounts, http } = client({
+      "POST /repos/alice/app/pulls/7/reviews": { status: 200, body: { id: 1 } },
+    })
+
+    await accounts.approvePullRequest(
+      accounts.findAccount(1),
+      { owner: "alice", repo: "app", number: 7 },
+      "good job",
+    )
+
+    assert.deepEqual(http.calls[0].payload, { event: "APPROVE", body: "good job" })
+    assert.equal(http.calls[0].headers.Authorization, "Bearer tok-b")
+  })
+
+  test("reports a rejected approval with GitHub's message", async () => {
+    const { accounts } = client({
+      "POST /reviews": {
+        status: 422,
+        body: { message: "Can not approve your own pull request" },
+      },
+    })
+
+    await assert.rejects(
+      accounts.approvePullRequest(accounts.findAccount(0), { owner: "a", repo: "b", number: 1 }, "ok"),
+      /GitHub 422: Can not approve your own pull request/,
+    )
+  })
 })

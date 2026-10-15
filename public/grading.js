@@ -152,6 +152,59 @@ async function sendGrade(button) {
   return ok
 }
 
+// Submits an approving review of the answer's pull request on GitHub and,
+// once it is approved, gives the answer full points
+async function approvePullRequest(button) {
+  if (!window.confirm(`Approve ${button.dataset.prUrl} and give full points?`)) return
+
+  const actionCell = button.closest("td")
+  const result = actionCell?.querySelector(".grade-result")
+  button.disabled = true
+  if (result) {
+    result.textContent = "approving..."
+    result.className = "grade-result"
+  }
+
+  let ok = false
+  let message
+  try {
+    const response = await fetch(`${basePath}/approve-pr`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exercise_id: button.dataset.exerciseId,
+        pr_url: button.dataset.prUrl,
+      }),
+    })
+    const data = await response.json()
+    ok = response.ok && data.ok
+    message = ok ? `approved (${data.account})` : data?.error || ("failed (" + response.status + ")")
+  } catch (err) {
+    message = err.message
+  } finally {
+    button.disabled = false
+  }
+
+  if (!ok) {
+    // Points are not given for a pull request that was not approved
+    if (result) {
+      result.textContent = message
+      result.classList.add("grade-fail")
+    }
+    return
+  }
+
+  const fullPointsButton = actionCell?.querySelector('.grade-btn[data-action="FullPoints"]')
+  const graded = fullPointsButton ? await sendGrade(fullPointsButton) : false
+  button.classList.add("grade-btn-selected")
+  if (result) {
+    result.textContent = graded
+      ? `${message}, full points given`
+      : `${message}, but full points failed: ${result.textContent}`
+    result.className = `grade-result ${graded ? "grade-ok" : "grade-fail"}`
+  }
+}
+
 // Full points to every correct answer not graded yet on this page, one at
 // a time so that mooc.fi is not flooded
 const acceptCorrectButton = document.getElementById("accept-correct")
@@ -199,6 +252,11 @@ document.addEventListener("click", async (event) => {
 
   if (action === "Reset") {
     openResetModal(userExerciseStateId, exerciseId, button)
+    return
+  }
+
+  if (action === "ApprovePr") {
+    await approvePullRequest(button)
     return
   }
 

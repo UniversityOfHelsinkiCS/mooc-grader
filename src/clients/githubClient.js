@@ -1,4 +1,9 @@
-const { parseGitHubRepo, selectRelevantRun } = require("../domain/repository")
+const {
+  parseGitHubRepo,
+  parsePullRequestUrl,
+  approvingReviewers,
+  selectRelevantRun,
+} = require("../domain/repository")
 
 // Only the start of a very large README is checked
 const MAX_README_LENGTH = 100_000
@@ -156,6 +161,27 @@ function createGithubClient({ http, baseUrl, credentials = [] }) {
     }
   }
 
+  // Logins that have approved the pull request, or null when its reviews
+  // could not be read. Only the first 100 reviews are read.
+  async function getPullRequestApprovals(prUrl) {
+    const parsed = parsePullRequestUrl(prUrl)
+    if (!parsed) return null
+    const { owner, repo, number } = parsed
+    try {
+      const { status, body } = await githubGet(
+        `${baseUrl}/repos/${owner}/${repo}/pulls/${number}/reviews?per_page=100`,
+      )
+      if (status !== 200 || !Array.isArray(body)) {
+        console.error(`Reviews API error ${status} for ${owner}/${repo}#${number}`)
+        return null
+      }
+      return approvingReviewers(body)
+    } catch (error) {
+      console.error(`Reviews error for ${owner}/${repo}#${number}:`, error.message)
+      return null
+    }
+  }
+
   // Drops cached responses about the repository ("owner/repo"), so that the
   // next check sees e.g. access gained by accepting an invitation. GitHub
   // names are case-insensitive.
@@ -168,7 +194,7 @@ function createGithubClient({ http, baseUrl, credentials = [] }) {
     })
   }
 
-  return { getGhaStatus, repoExists, getReadme, forgetRepo }
+  return { getGhaStatus, repoExists, getReadme, getPullRequestApprovals, forgetRepo }
 }
 
 module.exports = { createGithubClient, MAX_README_LENGTH }

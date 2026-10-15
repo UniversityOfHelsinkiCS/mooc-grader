@@ -19,6 +19,7 @@ function createApp({
   mooc,
   courseService,
   invitationService = null,
+  pullRequestService = null,
   stats = null,
   auth,
   basePath = "",
@@ -33,7 +34,7 @@ function createApp({
   router.use(requireSameOrigin)
   router.use(express.json())
   router.use("/static", express.static(path.join(__dirname, "..", "public")))
-  router.use(createApiRouter({ tabs, mooc, invitationService }))
+  router.use(createApiRouter({ tabs, mooc, invitationService, pullRequestService }))
   router.use(createPageRouter({ tabs, courseService, invitationService, stats, basePath }))
 
   app.use(basePath || "/", router)

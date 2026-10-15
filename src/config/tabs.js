@@ -31,6 +31,7 @@ const RESERVED_TAB_IDS = [
   "dismiss-cheater",
   "invites",
   "invitations",
+  "approve-pr",
 ]
 
 function validateTabs(tabs) {

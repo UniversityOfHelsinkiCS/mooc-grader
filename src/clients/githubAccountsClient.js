@@ -49,12 +49,15 @@ function createGithubAccountsClient({ http, baseUrl, credentials = [] }) {
     }
   }
 
-  async function call(account, method, path) {
+  // payload: JSON body of a POST
+  async function call(account, method, path, payload = null) {
     const url = `${baseUrl}${path}`
     const { status, body } =
       method === "GET"
         ? await http.get(url, headers(account))
-        : await http.send(method, url, headers(account))
+        : method === "POST"
+          ? await http.postJson(url, payload, headers(account))
+          : await http.send(method, url, headers(account))
     if (status >= 400) {
       const message = typeof body === "object" ? body?.message : null
       throw new Error(`GitHub ${status}${message ? `: ${message}` : ""}`)
@@ -100,6 +103,15 @@ function createGithubAccountsClient({ http, baseUrl, credentials = [] }) {
     return call(account, "DELETE", `/user/repository_invitations/${invitationId}`)
   }
 
+  // Submits an approving review, the same as "Approve" in GitHub's
+  // "Finish your review" dialog
+  function approvePullRequest(account, { owner, repo, number }, comment) {
+    return call(account, "POST", `/repos/${owner}/${repo}/pulls/${number}/reviews`, {
+      event: "APPROVE",
+      body: comment,
+    })
+  }
+
   return {
     listAccounts,
     findAccount,
@@ -107,6 +119,7 @@ function createGithubAccountsClient({ http, baseUrl, credentials = [] }) {
     listInvitations,
     acceptInvitation,
     declineInvitation,
+    approvePullRequest,
   }
 }
 
