@@ -60,4 +60,6 @@ body:has(#show-all-courses:checked) .all-quiet { display: none; }
 .modal select, .modal textarea { width: 100%; margin-top: 0.4rem; margin-bottom: 1rem; padding: 0.4rem; box-sizing: border-box; font-family: inherit; font-size: 0.9rem; }
 .modal textarea { min-height: 4.5rem; resize: vertical; }
 .reset-instructions { margin: 0 0 1rem; font-size: 0.85rem; color: #656d76; }
+h1 .grade-btn { vertical-align: middle; margin-left: 0.75rem; font-size: 0.9rem; }
+h1 .grade-result { font-size: 0.9rem; font-weight: normal; vertical-align: middle; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }

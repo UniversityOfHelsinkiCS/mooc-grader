@@ -114,6 +114,7 @@ describe("invitations pages and API", () => {
     assert.ok(html.includes('<a href="/mooc-grader/invites">GitHub invitations</a>'))
     assert.ok(html.includes('<tr data-row-url="/mooc-grader/overview/invites/0"><td>primary</td>'))
     assert.ok(html.includes('<tr data-row-url="/mooc-grader/overview/invites/1"><td>secondary</td>'))
+    assert.ok(html.includes('id="accept-all-invites" class="grade-btn grade-btn-green" data-accounts="0,1">Accept all</button>'))
   })
 
   test("an account row shows the counts of the account", async () => {

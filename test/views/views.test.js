@@ -228,6 +228,60 @@ describe("renderTabPage", () => {
     assert.deepEqual(correct.map((m) => m[1]), ["a1", "a2"])
   })
 
+  test("offers resetting the answers with a failed check", () => {
+    const withGha = (id, conclusion) => ({
+      ...answer({ id, userId: "u1", texts: [repo] }),
+      _repoUrl: repo,
+      _repoExists: true,
+      _ghaStatus: { conclusion, branch: "main" },
+    })
+    const noAccess = { ...withGha("a4", "not found"), _repoExists: false }
+    const html = renderTabPage(fullstack, [
+      courseResult({
+        gha: true,
+        answers: [
+          withGha("a1", "failure"),
+          withGha("a2", "success"),
+          withGha("a3", "in_progress"),
+          noAccess,
+          withGha("a5", "rate limited"),
+        ],
+      }),
+    ])
+
+    assert.ok(html.includes('data-count="2">Reset all incorrect (2)</button>'))
+    const incorrect = [...html.matchAll(/<button[^>]*data-action="Reset"[^>]*>/g)]
+      .filter((m) => m[0].includes('data-incorrect="true"'))
+      .map((m) => m[0].match(/data-user-id="(\w+)"/)[1])
+    assert.deepEqual(incorrect, ["a1", "a4"])
+  })
+
+  test("leaves resetting out when nothing is incorrect and on completion tabs", () => {
+    assert.ok(!renderTabPage(fullstack, [courseResult()]).includes("reject-incorrect"))
+    const item = {
+      ...answer({ id: "a1", userId: "u1", texts: [repo] }),
+      _repoUrl: repo,
+      _repoExists: false,
+    }
+    assert.ok(
+      renderTabPage(fullstack, [courseResult({ answers: [item] })]).includes("reject-incorrect"),
+    )
+    assert.ok(
+      !renderTabPage(kubernetes, [courseResult({ answers: [item] })]).includes("reject-incorrect"),
+    )
+  })
+
+  test("offers marking the flagged users of the tab honest, each course once", () => {
+    const html = renderTabPage(fullstack, [
+      courseResult({ courseId: "c1", cheaterCount: 2 }),
+      courseResult({ courseId: "c1", cheaterCount: 2 }),
+      courseResult({ courseId: "c2", cheaterCount: 1 }),
+      courseResult({ courseId: "c3", cheaterCount: 0 }),
+    ])
+    assert.ok(html.includes('data-tab-id="fs" data-count="3">All flagged honest (3)</button>'))
+    assert.ok(!renderTabPage(fullstack, [courseResult()]).includes("all-honest"))
+  })
+
   test("leaves accepting out when nothing is correct and on completion tabs", () => {
     assert.ok(!renderTabPage(fullstack, [courseResult()]).includes("accept-correct"))
     const item = {

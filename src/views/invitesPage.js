@@ -101,7 +101,8 @@ function renderInvitesSummaryRow(account) {
     : `<tr><td>${accountName(account)}</td><td>${account.open}</td><td>${account.expired}</td></tr>`
 }
 
-// Section of the overview page; the rows are loaded by the page script.
+// Section of the overview page; the rows are loaded by the page script,
+// which also handles Accept all (every open invitation of every account).
 // accounts: invitationService.listAccounts()
 function renderInvitesSummary(accounts, basePath) {
   const rows =
@@ -116,8 +117,12 @@ function renderInvitesSummary(accounts, basePath) {
             ),
           )
           .join("")
-  return `<h1><a href="${escapeHtml(basePath)}/invites">GitHub invitations</a></h1>
-<table class="summary"><thead><tr><th>Account</th><th>Open</th><th>Expired</th></tr></thead><tbody>${rows}</tbody></table>`
+  const acceptAll =
+    accounts.length === 0
+      ? ""
+      : ` <button type="button" id="accept-all-invites" class="grade-btn grade-btn-green" data-accounts="${accounts.map((account) => account.index).join(",")}">Accept all</button><span id="accept-all-invites-result" class="grade-result"></span>`
+  return `<h1><a href="${escapeHtml(basePath)}/invites">GitHub invitations</a>${acceptAll}</h1>
+<table class="summary" id="invites-summary"><thead><tr><th>Account</th><th>Open</th><th>Expired</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
 module.exports = { renderInvitesPage, renderInvitesSummary, renderInvitesSummaryRow }

@@ -112,6 +112,45 @@ function createApiRouter({ tabs, mooc, invitationService, pullRequestService }) 
   router.post("/dismiss-cheater", cheaterAction("dismiss"))
   router.post("/confirm-cheater", cheaterAction("confirm"))
 
+  // Marks every flagged user of the tab's cheaters courses honest, one at a
+  // time so that mooc.fi is not flooded; a partial failure is reported with
+  // how many succeeded
+  router.post("/dismiss-all-cheaters", async (req, res) => {
+    const tab = findTab(tabs, (req.body || {}).tab_id)
+    if (!tab) {
+      return res.status(400).json({ error: "Unknown tab_id" })
+    }
+    const courseIds = [
+      ...new Set(tab.courses.filter((course) => course.cheaters).map((course) => course.courseId)),
+    ]
+    let done = 0
+    const failed = []
+    try {
+      for (const courseId of courseIds) {
+        const flagged = await mooc.getFlaggedCheaters(courseId)
+        for (const userId of flagged.keys()) {
+          const response = await mooc
+            .postCheaterAction(courseId, "dismiss", userId)
+            .catch((err) => ({ status: err.message }))
+          if (response.status >= 200 && response.status < 300) {
+            done++
+          } else {
+            failed.push(`${userId} (${response.status})`)
+          }
+        }
+      }
+    } catch (err) {
+      return res.status(502).json({ error: err.message, done })
+    }
+    return res.status(failed.length === 0 ? 200 : 502).json({
+      ok: failed.length === 0,
+      done,
+      ...(failed.length === 0
+        ? {}
+        : { error: `${done} marked honest, ${failed.length} failed: ${failed.join("; ")}` }),
+    })
+  })
+
   function invitationAction(action) {
     return async (req, res) => {
       if (!invitationService) {

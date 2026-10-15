@@ -3,20 +3,21 @@ const basePath = document.body.dataset.basePath ?? ""
 
 let pendingReset = null
 
-function openResetModal(userExerciseStateId, exerciseId, button) {
-  pendingReset = { userExerciseStateId, exerciseId, button }
+// The reset reason matching the first failed check flagged on the Reset
+// button, or null when no check is flagged
+function resetReasonFor(button) {
+  if (button.dataset.repoMissing === "true") return "repository must be accessible by user mluukkai"
+  if (button.dataset.ghaFailed === "true") return "tests must pass in GitHub"
+  if (button.dataset.qrMissing === "true") return "QR-code missing"
+  if (button.dataset.linksMissing === "true") return "README.md does not contain the required links"
+  return null
+}
+
+function openResetModal(button) {
+  pendingReset = { button }
   const select = document.getElementById("reset-reason-select")
   const textarea = document.getElementById("reset-reason-text")
-  select.value =
-    button.dataset.repoMissing === "true"
-      ? "repository must be accessible by user mluukkai"
-      : button.dataset.ghaFailed === "true"
-        ? "tests must pass in GitHub"
-        : button.dataset.qrMissing === "true"
-          ? "QR-code missing"
-          : button.dataset.linksMissing === "true"
-            ? "README.md does not contain the required links"
-            : select.options[0].value
+  select.value = resetReasonFor(button) ?? select.options[0].value
   textarea.value = ""
   textarea.hidden = true
   document.getElementById("reset-modal-overlay").hidden = false
@@ -35,6 +36,58 @@ document.getElementById("reset-modal-cancel").addEventListener("click", () => {
   closeResetModal()
 })
 
+// Resets the answer of the Reset button with the justification and shows
+// the outcome in its row; resolves to whether it succeeded
+async function sendReset(button, justification) {
+  const actionCell = button.closest("td")
+  const result = actionCell?.querySelector(".grade-result")
+  const buttons = actionCell ? actionCell.querySelectorAll(".grade-btn") : [button]
+
+  buttons.forEach((btn) => {
+    btn.disabled = true
+  })
+  if (result) {
+    result.textContent = "sending..."
+    result.className = "grade-result"
+  }
+
+  let ok = false
+  let message
+  try {
+    const response = await fetch(`${basePath}/grade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_exercise_state_id: button.dataset.userId,
+        exercise_id: button.dataset.exerciseId,
+        action: "Other",
+        justification,
+      }),
+    })
+    const data = await response.json()
+    ok = response.ok && data.ok
+    message = ok ? "reset" : data?.error || data?.body?.error || ("failed (" + response.status + ")")
+  } catch (err) {
+    message = err.message
+  } finally {
+    buttons.forEach((btn) => {
+      btn.disabled = false
+    })
+  }
+
+  if (result) {
+    result.textContent = message
+    result.classList.add(ok ? "grade-ok" : "grade-fail")
+  }
+  if (ok) {
+    buttons.forEach((btn) => {
+      btn.classList.remove("grade-btn-selected")
+    })
+    button.classList.add("grade-btn-selected")
+  }
+  return ok
+}
+
 document.getElementById("reset-modal-submit").addEventListener("click", async () => {
   if (!pendingReset) return
   const select = document.getElementById("reset-reason-select")
@@ -45,60 +98,9 @@ document.getElementById("reset-modal-submit").addEventListener("click", async ()
     return
   }
 
-  const { userExerciseStateId, exerciseId, button } = pendingReset
-  const actionCell = button.closest("td")
-  const result = actionCell?.querySelector(".grade-result")
-  const buttons = actionCell ? actionCell.querySelectorAll(".grade-btn") : [button]
-
+  const { button } = pendingReset
   closeResetModal()
-
-  buttons.forEach((btn) => {
-    btn.disabled = true
-  })
-  if (result) {
-    result.textContent = "sending..."
-    result.className = "grade-result"
-  }
-
-  try {
-    const response = await fetch(`${basePath}/grade`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_exercise_state_id: userExerciseStateId,
-        exercise_id: exerciseId,
-        action: "Other",
-        justification,
-      }),
-    })
-
-    const data = await response.json()
-    if (response.ok && data.ok) {
-      if (result) {
-        result.textContent = "reset"
-        result.classList.add("grade-ok")
-      }
-      buttons.forEach((btn) => {
-        btn.classList.remove("grade-btn-selected")
-      })
-      button.classList.add("grade-btn-selected")
-    } else {
-      const msg = data?.error || data?.body?.error || ("failed (" + response.status + ")")
-      if (result) {
-        result.textContent = msg
-        result.classList.add("grade-fail")
-      }
-    }
-  } catch (err) {
-    if (result) {
-      result.textContent = err.message
-      result.classList.add("grade-fail")
-    }
-  } finally {
-    buttons.forEach((btn) => {
-      btn.disabled = false
-    })
-  }
+  await sendReset(button, justification)
 })
 
 // Sends a Full points / Zero points grade for the answer of the button and
@@ -239,6 +241,75 @@ if (acceptCorrectButton) {
   })
 }
 
+// Marks every flagged user of the tab's courses honest; the server goes
+// through them one at a time
+const allHonestButton = document.getElementById("all-honest")
+if (allHonestButton) {
+  allHonestButton.addEventListener("click", async () => {
+    const count = allHonestButton.dataset.count
+    if (!window.confirm(`Mark all ${count} flagged users of this tab honest?`)) return
+
+    const summary = document.getElementById("all-honest-result")
+    allHonestButton.disabled = true
+    summary.className = "grade-result"
+    summary.textContent = "sending..."
+    let ok = false
+    let message
+    try {
+      const response = await fetch(`${basePath}/dismiss-all-cheaters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab_id: allHonestButton.dataset.tabId }),
+      })
+      const data = await response.json()
+      ok = response.ok && data.ok
+      message = ok ? `${data.done} marked honest` : data?.error || ("failed (" + response.status + ")")
+    } catch (err) {
+      message = err.message
+    }
+    allHonestButton.disabled = false
+    summary.textContent = message
+    summary.classList.add(ok ? "grade-ok" : "grade-fail")
+  })
+}
+
+// Resets every incorrect answer not graded yet on this page with the reason
+// of its failed check, one at a time so that mooc.fi is not flooded
+const rejectIncorrectButton = document.getElementById("reject-incorrect")
+if (rejectIncorrectButton) {
+  rejectIncorrectButton.addEventListener("click", async () => {
+    const targets = [
+      ...document.querySelectorAll('.grade-btn[data-action="Reset"][data-incorrect="true"]'),
+    ].filter(
+      (button) =>
+        !button.closest("td").querySelector(".grade-btn-selected") && resetReasonFor(button),
+    )
+    const summary = document.getElementById("reject-incorrect-result")
+    if (targets.length === 0) {
+      summary.textContent = "no incorrect answers left"
+      summary.className = "grade-result"
+      return
+    }
+    if (!window.confirm(`Reset ${targets.length} incorrect answers with the reason of their failed check?`)) return
+
+    rejectIncorrectButton.disabled = true
+    summary.className = "grade-result"
+    let done = 0
+    let failed = 0
+    for (const button of targets) {
+      summary.textContent = `sending ${done + failed + 1}/${targets.length}...`
+      if (await sendReset(button, resetReasonFor(button))) {
+        done++
+      } else {
+        failed++
+      }
+    }
+    rejectIncorrectButton.disabled = false
+    summary.textContent = failed === 0 ? `${done} reset` : `${done} reset, ${failed} failed`
+    summary.classList.add(failed === 0 ? "grade-ok" : "grade-fail")
+  })
+}
+
 document.addEventListener("click", async (event) => {
   const button = event.target.closest(".grade-btn")
   if (!button || !button.dataset.action) return
@@ -251,7 +322,7 @@ document.addEventListener("click", async (event) => {
   const tabId = button.dataset.tabId
 
   if (action === "Reset") {
-    openResetModal(userExerciseStateId, exerciseId, button)
+    openResetModal(button)
     return
   }
 

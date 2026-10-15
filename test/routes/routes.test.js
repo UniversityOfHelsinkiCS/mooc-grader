@@ -65,6 +65,10 @@ describe("routes", () => {
       postGradingDecision: record("grading"),
       postCompletions: record("completions"),
       postCheaterAction: record("cheater"),
+      getFlaggedCheaters: async (courseId) => {
+        moocCalls.push(["flagged", courseId])
+        return new Map(courseId === "c1" ? [["u1", {}], ["u2", {}]] : [])
+      },
     }
     const courseService = {
       fetchTabData: async (tab) => tab.courses.map(emptyCourse),
@@ -255,6 +259,34 @@ describe("routes", () => {
         assert.equal((await response.json()).error, "Invalid userId")
       }
       assert.equal(moocCalls.length, 0)
+    })
+
+    test("all flagged users of a tab's cheaters courses are marked honest", async () => {
+      upstream = { status: 200, body: null }
+      moocCalls.length = 0
+
+      const response = await post("/dismiss-all-cheaters", { tab_id: "fs" })
+
+      assert.deepEqual(await response.json(), { ok: true, done: 2 })
+      assert.deepEqual(moocCalls, [
+        ["flagged", "c1"],
+        ["cheater", "c1", "dismiss", "u1"],
+        ["cheater", "c1", "dismiss", "u2"],
+      ])
+    })
+
+    test("marking all honest reports the users that failed", async () => {
+      upstream = { status: 500, body: null }
+
+      const response = await post("/dismiss-all-cheaters", { tab_id: "fs" })
+
+      assert.equal(response.status, 502)
+      assert.deepEqual(await response.json(), {
+        ok: false,
+        done: 0,
+        error: "0 marked honest, 2 failed: u1 (500); u2 (500)",
+      })
+      assert.equal((await post("/dismiss-all-cheaters", { tab_id: "nope" })).status, 400)
     })
 
     test("courses without the cheaters feature are rejected", async () => {

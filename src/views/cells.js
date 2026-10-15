@@ -134,7 +134,8 @@ function gradeButton(action, cssClass, label, attributes) {
 // data-user-id carries the answer's user_exercise_state_id, except for the
 // Completion button where it is the user id and data-item-id is the answer.
 // completionTabId: the tab completions are submitted from; it replaces
-// Full points with Completion. correct: all checks of the answer passed.
+// Full points with Completion. correct: all checks of the answer passed,
+// incorrect: one of them failed (marks the answers "Reset all incorrect" resets).
 // prUrl: pull request of the answer; Approve PR approves it and gives full
 // points. prApproved: the pull request is already approved
 function renderActionCell({
@@ -148,6 +149,7 @@ function renderActionCell({
   repoMissing = false,
   ghaFailed = false,
   correct = false,
+  incorrect = false,
   prUrl = null,
   prApproved = false,
 }) {
@@ -176,6 +178,7 @@ function renderActionCell({
     "gha-failed": ghaFailed && "true",
     "qr-missing": qrMissing && "true",
     "links-missing": linksMissing && "true",
+    incorrect: incorrect && "true",
   })
   const zeroPointsBtn = gradeButton(
     "ZeroPoints",

@@ -1,6 +1,6 @@
 const { getItemTexts } = require("../domain/answers")
 const { calculateGrade, RESUBMIT_INSTRUCTIONS } = require("../domain/grading")
-const { isGhaFailed, isGhaPassing } = require("../domain/repository")
+const { isGhaFailed, isGhaPassing, ghaOutcome } = require("../domain/repository")
 const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
 const { renderInvitesSummary } = require("./invitesPage")
 const {
@@ -38,6 +38,15 @@ function answerChecks(item, { qr, gha, linkCount }) {
 function isCorrect(item, courseResult) {
   const checks = answerChecks(item, courseResult)
   return checks.length > 0 && checks.every((check) => check.ok === true)
+}
+
+// Incorrect: a check of the answer failed, the same as a FAIL badge. An
+// answer whose GitHub Actions run is still going is not judged yet.
+function isIncorrect(item, courseResult) {
+  if (courseResult.gha && ghaOutcome(item._ghaStatus?.conclusion) === "pending") {
+    return false
+  }
+  return answerChecks(item, courseResult).some((check) => check.ok === false)
 }
 
 function optionalCell(show, value) {
@@ -78,6 +87,7 @@ function renderAnswerRow(item, courseResult, completionTabId) {
     repoMissing: !!item._repoUrl && item._repoExists === false,
     ghaFailed: gha && isGhaFailed(item._ghaStatus?.conclusion),
     correct: isCorrect(item, courseResult),
+    incorrect: isIncorrect(item, courseResult),
     prUrl: item._prUrl,
     prApproved: item._prApprovedBy?.length > 0,
   })
@@ -235,16 +245,38 @@ function needsAttention(courseResult) {
   )
 }
 
-// Gives full points to every correct answer of the tab. Tabs with
-// completions submit them one by one instead.
-function renderAcceptCorrect(results, completionTabId) {
+// Gives full points to every correct answer of the tab and resets every
+// incorrect one with the reason of its failed check. Tabs with completions
+// submit them one by one instead.
+function renderBulkGrading(results, completionTabId) {
   if (completionTabId) return ""
-  const count = results
+  const answers = results
     .filter((result) => !result.error)
-    .flatMap((result) => result.answers.filter((item) => isCorrect(item, result)))
-    .length
+    .flatMap((result) => result.answers.map((item) => [item, result]))
+  const correct = answers.filter(([item, result]) => isCorrect(item, result)).length
+  const incorrect = answers.filter(([item, result]) => isIncorrect(item, result)).length
+  const acceptButton =
+    correct > 0
+      ? `<button type="button" id="accept-correct" class="grade-btn grade-btn-green" data-count="${correct}">Full points to all correct (${correct})</button><span id="accept-correct-result" class="grade-result"></span> `
+      : ""
+  const rejectButton =
+    incorrect > 0
+      ? `<button type="button" id="reject-incorrect" class="grade-btn grade-btn-reset" data-count="${incorrect}">Reset all incorrect (${incorrect})</button><span id="reject-incorrect-result" class="grade-result"></span>`
+      : ""
+  return acceptButton || rejectButton ? `<p>${acceptButton}${rejectButton}</p>` : ""
+}
+
+// Marks every flagged user of the tab's courses honest; courses sharing a
+// mooc.fi course are counted once
+function renderAllHonest(results, tabId) {
+  const counts = new Map(
+    results
+      .filter((result) => !result.error && result.cheaterCount > 0)
+      .map((result) => [result.courseId, result.cheaterCount]),
+  )
+  const count = [...counts.values()].reduce((sum, n) => sum + n, 0)
   if (count === 0) return ""
-  return `<p><button type="button" id="accept-correct" class="grade-btn grade-btn-green" data-count="${count}">Full points to all correct (${count})</button><span id="accept-correct-result" class="grade-result"></span></p>`
+  return `<p><button type="button" id="all-honest" class="grade-btn grade-btn-green" data-tab-id="${escapeHtml(tabId)}" data-count="${count}">All flagged honest (${count})</button><span id="all-honest-result" class="grade-result"></span></p>`
 }
 
 // The toggle is a plain checkbox that CSS reacts to, so it needs no script
@@ -274,7 +306,7 @@ function renderTabPage(tab, results, { basePath = "" } = {}) {
     title: `${escapeHtml(tab.name)} - answers requiring attention`,
     basePath,
     bodyClass: completionTabId ? "compact" : null,
-    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderAcceptCorrect(results, completionTabId)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
+    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderBulkGrading(results, completionTabId)}${renderAllHonest(results, tab.id)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
   <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }
