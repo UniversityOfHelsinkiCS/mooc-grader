@@ -137,7 +137,8 @@ function gradeButton(action, cssClass, label, attributes) {
 // Full points with Completion. correct: all checks of the answer passed,
 // incorrect: one of them failed (marks the answers "Reset all incorrect" resets).
 // prUrl: pull request of the answer; Approve PR approves it and gives full
-// points. prApproved: the pull request is already approved
+// points. prApproved: the pull request is already approved. prMissing: the
+// answer should be a pull request link but has none
 function renderActionCell({
   itemId,
   exerciseId,
@@ -152,6 +153,7 @@ function renderActionCell({
   incorrect = false,
   prUrl = null,
   prApproved = false,
+  prMissing = false,
 }) {
   const target = { "user-id": itemId, "exercise-id": exerciseId }
 
@@ -178,6 +180,7 @@ function renderActionCell({
     "gha-failed": ghaFailed && "true",
     "qr-missing": qrMissing && "true",
     "links-missing": linksMissing && "true",
+    "pr-missing": prMissing && "true",
     incorrect: incorrect && "true",
   })
   const zeroPointsBtn = gradeButton(

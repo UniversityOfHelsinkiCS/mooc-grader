@@ -134,6 +134,7 @@ function createCourseService({ mooc, github }) {
       gha: !!course.gha,
       qr: !!course.qr,
       linkCount: course.linkCount ?? null,
+      pr: !!course.pr,
       cheaterCount,
       answers,
     }

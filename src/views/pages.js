@@ -15,6 +15,7 @@ const RESET_REASONS = [
   "tests must pass in GitHub",
   "QR-code missing",
   "README.md does not contain the required links",
+  "the answer must be a link to a pull request",
 ]
 
 function answerChecks(item, { qr, gha, linkCount }) {
@@ -89,6 +90,7 @@ function renderAnswerRow(item, courseResult, completionTabId) {
     correct: isCorrect(item, courseResult),
     incorrect: isIncorrect(item, courseResult),
     prUrl: item._prUrl,
+    prMissing: courseResult.pr && !item._prUrl,
     prApproved: item._prApprovedBy?.length > 0,
   })
 
@@ -101,7 +103,7 @@ function renderAnswerRow(item, courseResult, completionTabId) {
         optionalCell(true, item._coursePoints),
         optionalCell(true, grade),
       ].join("")
-    : `<td>${escapeHtml(item.id)}</td>`
+    : `<td>${escapeHtml(item.id)}</td><td class="user-id">${escapeHtml(item.user_id ?? "")}</td>`
 
   return `<tr>${userCells}<td>${answerCell}${approval}</td>${renderGhaCell(gha, item._ghaStatus)}${renderChecksCell(answerChecks(item, courseResult))}${actionCell}</tr>`
 }
@@ -121,7 +123,7 @@ function renderCourseSection(courseResult, completionTabId, basePath) {
 
   const userHeaders = completionTabId
     ? "<th>User ID</th><th>Name</th><th>Email</th><th>Course points</th><th>Grade</th>"
-    : "<th>Answer ID</th>"
+    : `<th>Answer ID</th><th class="user-id">User ID</th>`
   html += `<table><thead><tr>${userHeaders}<th>Answer</th>${gha ? "<th>GHA status</th>" : ""}<th>Checks</th><th>Action</th></tr></thead><tbody>`
   for (const item of answers) {
     html += renderAnswerRow(item, courseResult, completionTabId)
@@ -289,6 +291,13 @@ function renderCourseFilter(quietCount, total) {
   return `<label class="show-all"><input type="checkbox" id="show-all-courses"> Show all courses (${quietCount} without anything to do)</label>${allQuiet}`
 }
 
+// Like the course filter a plain checkbox; tabs with completions always
+// show the user id
+function renderUserIdToggle(completionTabId) {
+  if (completionTabId) return ""
+  return `<label class="show-all"><input type="checkbox" id="show-user-ids"> Show user IDs</label> `
+}
+
 // Tabs with completions list answers per user and use the full page width
 function renderTabPage(tab, results, { basePath = "" } = {}) {
   const completionTabId = tab.completion ? tab.id : null
@@ -306,7 +315,7 @@ function renderTabPage(tab, results, { basePath = "" } = {}) {
     title: `${escapeHtml(tab.name)} - answers requiring attention`,
     basePath,
     bodyClass: completionTabId ? "compact" : null,
-    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderBulkGrading(results, completionTabId)}${renderAllHonest(results, tab.id)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
+    body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderBulkGrading(results, completionTabId)}${renderAllHonest(results, tab.id)}${renderUserIdToggle(completionTabId)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
   <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }

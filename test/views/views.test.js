@@ -367,6 +367,43 @@ describe("renderTabPage course filter", () => {
   })
 })
 
+describe("renderTabPage pull request answers", () => {
+  const tab = { id: "pull-requests", name: "Pull requests", courses: [] }
+
+  test("flags Reset when the answer is not a pull request link", () => {
+    const html = renderTabPage(tab, [
+      courseResult({ pr: true, answers: [answer({ id: "a1", userId: "u1", texts: ["x"] })] }),
+    ])
+    assert.ok(html.includes('data-pr-missing="true"'))
+    assert.ok(html.includes("the answer must be a link to a pull request"))
+  })
+
+  test("does not flag Reset when the answer has a pull request link", () => {
+    const item = answer({ id: "a1", userId: "u1", texts: ["https://github.com/a/b/pull/1"] })
+    item._prUrl = "https://github.com/a/b/pull/1"
+    const html = renderTabPage(tab, [courseResult({ pr: true, answers: [item] })])
+    assert.ok(!html.includes("data-pr-missing"))
+  })
+})
+
+describe("renderTabPage user id toggle", () => {
+  test("renders user ids hidden behind a toggle", () => {
+    const tab = { id: "docker", name: "Docker", courses: [] }
+    const html = renderTabPage(tab, [
+      courseResult({ answers: [answer({ id: "a1", userId: "u1", texts: ["x"] })] }),
+    ])
+    assert.ok(html.includes('id="show-user-ids"'))
+    assert.ok(html.includes('<th class="user-id">User ID</th>'))
+    assert.ok(html.includes('<td class="user-id">u1</td>'))
+  })
+
+  test("leaves the toggle out on tabs with completions", () => {
+    const tab = { id: "fs", name: "Full stack", courses: [], completion: {} }
+    const html = renderTabPage(tab, [courseResult({ answers: [] })])
+    assert.ok(!html.includes("show-user-ids"))
+  })
+})
+
 describe("renderOverviewPage", () => {
   test("is sent with a loading row per tab, account and Suotar link", () => {
     const html = renderOverviewPage(

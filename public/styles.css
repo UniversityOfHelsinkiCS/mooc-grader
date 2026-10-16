@@ -20,6 +20,8 @@ table.summary { table-layout: fixed; }
 .course.quiet { display: none; }
 body:has(#show-all-courses:checked) .course.quiet { display: block; }
 body:has(#show-all-courses:checked) .all-quiet { display: none; }
+.user-id { display: none; }
+body:has(#show-user-ids:checked) .user-id { display: table-cell; }
 .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; color: #fff; }
 .badge a { color: #fff; text-decoration: none; }
 .checkbox-ok { color: #2da44e; font-weight: 600; }

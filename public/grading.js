@@ -10,6 +10,7 @@ function resetReasonFor(button) {
   if (button.dataset.ghaFailed === "true") return "tests must pass in GitHub"
   if (button.dataset.qrMissing === "true") return "QR-code missing"
   if (button.dataset.linksMissing === "true") return "README.md does not contain the required links"
+  if (button.dataset.prMissing === "true") return "the answer must be a link to a pull request"
   return null
 }
 
