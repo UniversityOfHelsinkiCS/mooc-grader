@@ -3,17 +3,6 @@ const basePath = document.body.dataset.basePath ?? ""
 
 let pendingReset = null
 
-// The reset reason matching the first failed check flagged on the Reset
-// button, or null when no check is flagged
-function resetReasonFor(button) {
-  if (button.dataset.repoMissing === "true") return "repository must be accessible by user mluukkai"
-  if (button.dataset.ghaFailed === "true") return "tests must pass in GitHub"
-  if (button.dataset.qrMissing === "true") return "QR-code missing"
-  if (button.dataset.linksMissing === "true") return "README.md does not contain the required links"
-  if (button.dataset.prMissing === "true") return "the answer must be a link to a pull request"
-  return null
-}
-
 function openResetModal(button) {
   pendingReset = { button }
   const select = document.getElementById("reset-reason-select")
@@ -52,32 +41,13 @@ async function sendReset(button, justification) {
     result.className = "grade-result"
   }
 
-  let ok = false
-  let message
-  try {
-    const response = await fetch(`${basePath}/grade`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_exercise_state_id: button.dataset.userId,
-        exercise_id: button.dataset.exerciseId,
-        action: "Other",
-        justification,
-      }),
-    })
-    const data = await response.json()
-    ok = response.ok && data.ok
-    message = ok ? "reset" : data?.error || data?.body?.error || ("failed (" + response.status + ")")
-  } catch (err) {
-    message = err.message
-  } finally {
-    buttons.forEach((btn) => {
-      btn.disabled = false
-    })
-  }
+  const { ok, message } = await postGrade(button, justification)
+  buttons.forEach((btn) => {
+    btn.disabled = false
+  })
 
   if (result) {
-    result.textContent = message
+    result.textContent = ok ? "reset" : message
     result.classList.add(ok ? "grade-ok" : "grade-fail")
   }
   if (ok) {
@@ -119,31 +89,13 @@ async function sendGrade(button) {
     result.className = "grade-result"
   }
 
-  let ok = false
-  let message
-  try {
-    const response = await fetch(`${basePath}/grade`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_exercise_state_id: button.dataset.userId,
-        exercise_id: button.dataset.exerciseId,
-        action: button.dataset.action,
-      }),
-    })
-    const data = await response.json()
-    ok = response.ok && data.ok
-    message = ok ? "ok" : data?.error || data?.body?.error || ("failed (" + response.status + ")")
-  } catch (err) {
-    message = err.message
-  } finally {
-    buttons.forEach((btn) => {
-      btn.disabled = false
-    })
-  }
+  const { ok, message } = await postGrade(button)
+  buttons.forEach((btn) => {
+    btn.disabled = false
+  })
 
   if (result) {
-    result.textContent = message
+    result.textContent = ok ? "ok" : message
     result.classList.add(ok ? "grade-ok" : "grade-fail")
   }
   if (ok) {
@@ -168,25 +120,8 @@ async function approvePullRequest(button) {
     result.className = "grade-result"
   }
 
-  let ok = false
-  let message
-  try {
-    const response = await fetch(`${basePath}/approve-pr`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        exercise_id: button.dataset.exerciseId,
-        pr_url: button.dataset.prUrl,
-      }),
-    })
-    const data = await response.json()
-    ok = response.ok && data.ok
-    message = ok ? `approved (${data.account})` : data?.error || ("failed (" + response.status + ")")
-  } catch (err) {
-    message = err.message
-  } finally {
-    button.disabled = false
-  }
+  const { ok, message } = await postApprovePr(button)
+  button.disabled = false
 
   if (!ok) {
     // Points are not given for a pull request that was not approved
@@ -213,9 +148,7 @@ async function approvePullRequest(button) {
 const acceptCorrectButton = document.getElementById("accept-correct")
 if (acceptCorrectButton) {
   acceptCorrectButton.addEventListener("click", async () => {
-    const targets = [
-      ...document.querySelectorAll('.grade-btn[data-action="FullPoints"][data-correct="true"]'),
-    ].filter((button) => !button.classList.contains("grade-btn-selected"))
+    const targets = correctTargets()
     const summary = document.getElementById("accept-correct-result")
     if (targets.length === 0) {
       summary.textContent = "no correct answers left"
@@ -279,12 +212,7 @@ if (allHonestButton) {
 const rejectIncorrectButton = document.getElementById("reject-incorrect")
 if (rejectIncorrectButton) {
   rejectIncorrectButton.addEventListener("click", async () => {
-    const targets = [
-      ...document.querySelectorAll('.grade-btn[data-action="Reset"][data-incorrect="true"]'),
-    ].filter(
-      (button) =>
-        !button.closest("td").querySelector(".grade-btn-selected") && resetReasonFor(button),
-    )
+    const targets = incorrectTargets()
     const summary = document.getElementById("reject-incorrect-result")
     if (targets.length === 0) {
       summary.textContent = "no incorrect answers left"
@@ -307,6 +235,57 @@ if (rejectIncorrectButton) {
     }
     rejectIncorrectButton.disabled = false
     summary.textContent = failed === 0 ? `${done} reset` : `${done} reset, ${failed} failed`
+    summary.classList.add(failed === 0 ? "grade-ok" : "grade-fail")
+  })
+}
+
+// Full points to every correct answer and resets every incorrect one, one
+// at a time so that mooc.fi is not flooded
+const gradeAllButton = document.getElementById("grade-all")
+if (gradeAllButton) {
+  gradeAllButton.addEventListener("click", async () => {
+    const correct = correctTargets()
+    const incorrect = incorrectTargets()
+    const summary = document.getElementById("grade-all-result")
+    const total = correct.length + incorrect.length
+    if (total === 0) {
+      summary.textContent = "no answers left"
+      summary.className = "grade-result"
+      return
+    }
+    if (
+      !window.confirm(
+        `Give full points to ${correct.length} correct answers and reset ${incorrect.length} incorrect answers?`,
+      )
+    ) {
+      return
+    }
+
+    gradeAllButton.disabled = true
+    summary.className = "grade-result"
+    let accepted = 0
+    let reset = 0
+    let failed = 0
+    const progress = () => `sending ${accepted + reset + failed + 1}/${total}...`
+    for (const button of correct) {
+      summary.textContent = progress()
+      if (await sendGrade(button)) {
+        accepted++
+      } else {
+        failed++
+      }
+    }
+    for (const button of incorrect) {
+      summary.textContent = progress()
+      if (await sendReset(button, resetReasonFor(button))) {
+        reset++
+      } else {
+        failed++
+      }
+    }
+    gradeAllButton.disabled = false
+    summary.textContent =
+      `${accepted} given full points, ${reset} reset` + (failed === 0 ? "" : `, ${failed} failed`)
     summary.classList.add(failed === 0 ? "grade-ok" : "grade-fail")
   })
 }

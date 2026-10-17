@@ -51,6 +51,8 @@ body:has(#show-user-ids:checked) .user-id { display: table-cell; }
 .grade-btn-zero.grade-btn-selected { background: #cf222e; border-color: #cf222e; color: #fff; }
 .grade-btn-green.grade-btn-selected { background: #2da44e; border-color: #2da44e; color: #fff; }
 .grade-btn-reset.grade-btn-selected { background: #d4a017; border-color: #d4a017; color: #000; }
+.grade-btn-all { background: #0969da; border-color: #0969da; color: #fff; font-weight: 600; }
+.grade-btn-all:hover:not(:disabled) { background: #0550ae; border-color: #0550ae; }
 .grade-btn:disabled { opacity: 0.6; cursor: default; }
 .grade-result { margin-left: 0.5rem; font-size: 0.85rem; color: #555; }
 .grade-ok { color: #2da44e; }

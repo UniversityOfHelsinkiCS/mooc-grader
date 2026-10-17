@@ -18,8 +18,14 @@ const RESET_REASONS = [
   "the answer must be a link to a pull request",
 ]
 
-function answerChecks(item, { qr, gha, linkCount }) {
+// PR: approved is OK, no pull request link is missing, and a pull request
+// waiting for approval (or whose reviews could not be read) is unknown
+function answerChecks(item, { qr, gha, linkCount, pr }) {
   const checks = []
+  if (pr) {
+    const ok = !item._prUrl ? false : item._prApprovedBy?.length > 0 ? true : null
+    checks.push({ label: "PR", ok })
+  }
   if (item._repoUrl) {
     checks.push({ label: "Repo", ok: item._repoExists })
   }
@@ -215,7 +221,37 @@ function renderSuotarTable(basePath) {
 // fills in one by one. invitationAccounts: invitationService.listAccounts(),
 // or null to leave the section out
 function renderOverviewPage(tabs, { basePath = "", invitationAccounts = null } = {}) {
-  const tabRows = tabs
+  // Tabs with completions are graded by hand, user by user, so they get a
+  // table of their own and are not graded from the overview
+  const gradedTabs = tabs.filter((tab) => !tab.completion)
+  const manualTabs = tabs.filter((tab) => tab.completion)
+  const gradeAllTabs =
+    gradedTabs.length > 0
+      ? ` <button type="button" id="grade-all-tabs" class="grade-btn grade-btn-all" data-tabs="${escapeHtml(gradedTabs.map((tab) => tab.id).join(","))}">Full points to correct, reset incorrect: ${escapeHtml(gradedTabs.map((tab) => tab.name).join(", "))}</button><span id="grade-all-tabs-result" class="grade-result"></span>`
+      : ""
+  const manual =
+    manualTabs.length > 0
+      ? `<h1>Manual grading</h1>
+${renderTabTable(manualTabs, basePath)}
+`
+      : ""
+  const invites = invitationAccounts
+    ? `${renderInvitesSummary(invitationAccounts, basePath)}\n`
+    : ""
+  return layout({
+    title: "Answers requiring attention",
+    basePath,
+    body: `${invites}<h1>Answers requiring attention${gradeAllTabs}</h1>
+${renderTabTable(gradedTabs, basePath, "tab-summary")}
+${manual}${renderSuotarTable(basePath)}
+  <script src="${escapeHtml(basePath)}/static/bulkGrading.js"></script>
+  <script src="${escapeHtml(basePath)}/static/overview.js"></script>`,
+  })
+}
+
+// Placeholder rows of the tabs that the overview page script fills in
+function renderTabTable(tabs, basePath, id = null) {
+  const rows = tabs
     .map((tab) =>
       loadingRow(
         `${basePath}/overview/tabs/${encodeURIComponent(tab.id)}`,
@@ -224,17 +260,8 @@ function renderOverviewPage(tabs, { basePath = "", invitationAccounts = null } =
       ),
     )
     .join("")
-  const invites = invitationAccounts
-    ? `${renderInvitesSummary(invitationAccounts, basePath)}\n`
-    : ""
-  return layout({
-    title: "Answers requiring attention",
-    basePath,
-    body: `${invites}<h1>Answers requiring attention</h1>
-<table class="summary"><thead><tr><th>Tab</th><th>Answers</th><th>Cheaters</th></tr></thead><tbody>${tabRows}</tbody></table>
-${renderSuotarTable(basePath)}
-  <script src="${escapeHtml(basePath)}/static/overview.js"></script>`,
-  })
+  const idAttribute = id ? ` id="${id}"` : ""
+  return `<table class="summary"${idAttribute}><thead><tr><th>Tab</th><th>Answers</th><th>Cheaters</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
 // A course needs attention when it has answers, flagged cheaters or could
@@ -265,7 +292,14 @@ function renderBulkGrading(results, completionTabId) {
     incorrect > 0
       ? `<button type="button" id="reject-incorrect" class="grade-btn grade-btn-reset" data-count="${incorrect}">Reset all incorrect (${incorrect})</button><span id="reject-incorrect-result" class="grade-result"></span>`
       : ""
-  return acceptButton || rejectButton ? `<p>${acceptButton}${rejectButton}</p>` : ""
+  // Both at once; with only one kind of answer the buttons above suffice
+  const bothButton =
+    correct > 0 && incorrect > 0
+      ? `<button type="button" id="grade-all" class="grade-btn grade-btn-all" data-count="${correct + incorrect}">Full points to correct, reset incorrect (${correct} + ${incorrect})</button><span id="grade-all-result" class="grade-result"></span> `
+      : ""
+  return acceptButton || rejectButton
+    ? `<p>${bothButton}${acceptButton}${rejectButton}</p>`
+    : ""
 }
 
 // Marks every flagged user of the tab's courses honest; courses sharing a
@@ -316,6 +350,7 @@ function renderTabPage(tab, results, { basePath = "" } = {}) {
     basePath,
     bodyClass: completionTabId ? "compact" : null,
     body: `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p><h1>${escapeHtml(tab.name)}</h1>${renderBulkGrading(results, completionTabId)}${renderAllHonest(results, tab.id)}${renderUserIdToggle(completionTabId)}${renderCourseFilter(quietCount, results.length)}${sections.join("")}${renderResetModal()}
+  <script src="${escapeHtml(basePath)}/static/bulkGrading.js"></script>
   <script src="${escapeHtml(basePath)}/static/grading.js"></script>`,
   })
 }

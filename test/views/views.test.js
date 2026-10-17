@@ -271,6 +271,30 @@ describe("renderTabPage", () => {
     )
   })
 
+  test("offers grading correct and incorrect at once only when there are both", () => {
+    const item = (id, repoExists) => ({
+      ...answer({ id, userId: "u1", texts: [repo] }),
+      _repoUrl: repo,
+      _repoExists: repoExists,
+    })
+    const html = renderTabPage(fullstack, [
+      courseResult({ answers: [item("a1", true), item("a2", false), item("a3", false)] }),
+    ])
+    assert.ok(
+      html.includes('data-count="3">Full points to correct, reset incorrect (1 + 2)</button>'),
+    )
+    assert.ok(
+      !renderTabPage(fullstack, [courseResult({ answers: [item("a1", true)] })]).includes(
+        "grade-all",
+      ),
+    )
+    assert.ok(
+      !renderTabPage(fullstack, [courseResult({ answers: [item("a1", false)] })]).includes(
+        "grade-all",
+      ),
+    )
+  })
+
   test("offers marking the flagged users of the tab honest, each course once", () => {
     const html = renderTabPage(fullstack, [
       courseResult({ courseId: "c1", cheaterCount: 2 }),
@@ -384,6 +408,32 @@ describe("renderTabPage pull request answers", () => {
     const html = renderTabPage(tab, [courseResult({ pr: true, answers: [item] })])
     assert.ok(!html.includes("data-pr-missing"))
   })
+
+  test("an approved pull request is correct, a missing one incorrect, others undecided", () => {
+    const withPr = (id, approvedBy) => ({
+      ...answer({ id, userId: "u1", texts: ["pr"] }),
+      _prUrl: `https://github.com/a/b/pull/${id}`,
+      _prApprovedBy: approvedBy,
+    })
+    const html = renderTabPage(tab, [
+      courseResult({
+        pr: true,
+        answers: [
+          withPr("a1", ["mluukkai"]),
+          withPr("a2", []),
+          withPr("a3", null),
+          answer({ id: "a4", userId: "u1", texts: ["x"] }),
+        ],
+      }),
+    ])
+    const marked = (attribute) =>
+      [...html.matchAll(/<button[^>]*>/g)]
+        .filter((m) => m[0].includes(`data-${attribute}="true"`))
+        .map((m) => m[0].match(/data-user-id="(\w+)"/)[1])
+    assert.deepEqual(marked("correct"), ["a1"])
+    assert.deepEqual(marked("incorrect"), ["a4"])
+    assert.ok(html.includes("Full points to correct, reset incorrect (1 + 1)"))
+  })
 })
 
 describe("renderTabPage user id toggle", () => {
@@ -426,6 +476,31 @@ describe("renderOverviewPage", () => {
     assert.ok(html.includes('<tr data-row-url="/g/overview/suotar/0">'))
     assert.ok(html.includes('<tr data-row-url="/g/overview/suotar/1">'))
     assert.ok(html.includes('<script src="/g/static/overview.js"></script>'))
+  })
+
+  test("offers grading every tab without completions", () => {
+    const html = renderOverviewPage([
+      { id: "k8s", name: "Kubernetes", completion: { courseModuleId: "m", courseInstanceId: "i" } },
+      { id: "fs", name: "Full stack" },
+      { id: "docker", name: "Docker" },
+    ])
+    assert.ok(
+      html.includes(
+        'data-tabs="fs,docker">Full points to correct, reset incorrect: Full stack, Docker</button>',
+      ),
+    )
+    assert.ok(!renderOverviewPage([]).includes("grade-all-tabs"))
+  })
+
+  test("lists the tabs with completions in a table of their own", () => {
+    const html = renderOverviewPage([
+      { id: "fs", name: "Full stack" },
+      { id: "k8s", name: "Kubernetes", completion: { courseModuleId: "m", courseInstanceId: "i" } },
+    ])
+    const manual = html.indexOf("<h1>Manual grading</h1>")
+    assert.ok(manual > html.indexOf('href="/fs"'))
+    assert.ok(manual < html.indexOf('href="/k8s"'))
+    assert.ok(!renderOverviewPage([{ id: "fs", name: "Full stack" }]).includes("Manual grading"))
   })
 
   test("leaves the invitations out without an invitation service", () => {
