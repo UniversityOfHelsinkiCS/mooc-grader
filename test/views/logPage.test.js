@@ -105,6 +105,15 @@ describe("renderLogPage", () => {
     assert.ok(filtered.includes('/static/logPage.js'))
   })
 
+  test("marks the rows of the scheduled grading", () => {
+    const html = renderLogPage(
+      [row({ actor_uid: "node-cron", action: "auto_grade_run", details: { full_points: 3 } })],
+      { tabs, filters, limit: 200 },
+    )
+    assert.ok(html.includes('<span class="badge log-cron">node-cron</span>'))
+    assert.ok(html.includes(">Scheduled run</a>"))
+  })
+
   test("says when the log is off", () => {
     const html = renderLogPage([], { tabs, filters, limit: 200, enabled: false })
     assert.ok(html.includes("DATABASE_URL is not set"))

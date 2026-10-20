@@ -1,5 +1,6 @@
 const { escapeHtml, externalLink, layout } = require("./html")
 const { allCourses, findTab, findCourseByExercise } = require("../config/tabs")
+const { AUTO_GRADER_ACTOR } = require("../services/autoGrader")
 
 const ACTION_LABELS = {
   full_points: "Full points",
@@ -13,6 +14,7 @@ const ACTION_LABELS = {
   invite_decline: "Remove invitation",
   invite_accept_all: "Accept all invitations",
   invite_decline_expired: "Remove expired invitations",
+  auto_grade_run: "Scheduled run",
 }
 
 const FILTER_PARAMS = {
@@ -120,7 +122,12 @@ function renderLogRow(row, tabs, basePath, filters) {
   const tab = row.tab_id
     ? filterLink(basePath, filters, "tabId", row.tab_id, escapeHtml(findTab(tabs, row.tab_id)?.name ?? row.tab_id))
     : ""
-  const actor = row.actor_uid ? filterLink(basePath, filters, "actor", row.actor_uid) : `<span class="none">unknown</span>`
+  // The scheduled grading stands out from the actions people did
+  const actor = !row.actor_uid
+    ? `<span class="none">unknown</span>`
+    : row.actor_uid === AUTO_GRADER_ACTOR
+      ? filterLink(basePath, filters, "actor", row.actor_uid, `<span class="badge log-cron">${escapeHtml(row.actor_uid)}</span>`)
+      : filterLink(basePath, filters, "actor", row.actor_uid)
   const action = filterLink(basePath, filters, "action", row.action, escapeHtml(ACTION_LABELS[row.action] ?? row.action))
   const student = row.target_user_id
     ? filterLink(basePath, filters, "userId", row.target_user_id, shortId(row.target_user_id))

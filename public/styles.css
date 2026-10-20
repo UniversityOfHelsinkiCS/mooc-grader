@@ -82,3 +82,4 @@ table.log td { font-size: 0.9rem; vertical-align: top; }
 .log-detail { color: #656d76; }
 .log-ranges { margin: 0 0 0.5rem; }
 .top-nav { display: flex; justify-content: flex-end; gap: 1rem; font-weight: 600; }
+.log-cron { background: #8250df; }

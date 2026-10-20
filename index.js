@@ -1,5 +1,6 @@
 require("dotenv").config()
 const { Pool } = require("pg")
+const cron = require("node-cron")
 const { createHttpClient } = require("./src/infra/httpClient")
 const { withCache, withConcurrencyLimit } = require("./src/infra/httpWrappers")
 const { loadConfig } = require("./src/config")
@@ -12,6 +13,7 @@ const { createStatsClient } = require("./src/clients/statsClient")
 const { createCourseService } = require("./src/services/courseService")
 const { createInvitationService } = require("./src/services/invitationService")
 const { createPullRequestService } = require("./src/services/pullRequestService")
+const { createAutoGrader } = require("./src/services/autoGrader")
 const { createActionLog, noActionLog } = require("./src/infra/actionLog")
 const { createApp } = require("./src/app")
 
@@ -50,18 +52,46 @@ const invitationService = createInvitationService({
   onAccepted: github.forgetRepo,
 })
 
+// The approval must show up at once on the tab, not the cached reviews
+const pullRequestService = createPullRequestService({
+  accounts,
+  onApproved: github.forgetRepo,
+})
+const actionLog = db ? createActionLog({ db }) : noActionLog
+
+const autoGrader = createAutoGrader({
+  tabs: config.tabs,
+  mooc,
+  courseService,
+  invitationService,
+  pullRequestService,
+  actionLog,
+})
+const autoGradeTask = config.autoGrade.enabled
+  ? cron.schedule(
+      config.autoGrade.schedule,
+      () =>
+        autoGrader
+          .run()
+          .then((totals) => totals && console.log("Scheduled grading:", JSON.stringify(totals)))
+          .catch((err) => console.error("Scheduled grading failed:", err.message)),
+      { timezone: "Europe/Helsinki", noOverlap: true, name: "auto-grade" },
+    )
+  : null
+console.log(
+  autoGradeTask
+    ? `Scheduled grading at "${config.autoGrade.schedule}" (Europe/Helsinki)`
+    : "Scheduled grading is off",
+)
+
 const app = createApp({
   tabs: config.tabs,
   mooc,
   courseService,
   invitationService,
-  // The approval must show up at once on the tab, not the cached reviews
-  pullRequestService: createPullRequestService({
-    accounts,
-    onApproved: github.forgetRepo,
-  }),
+  pullRequestService,
   stats: createStatsClient({ http }),
-  actionLog: db ? createActionLog({ db }) : noActionLog,
+  actionLog,
   auth: config.auth,
   basePath: config.basePath,
 })
@@ -76,6 +106,7 @@ const server = app.listen(config.port, () => {
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`)
+    autoGradeTask?.stop()
     server.close(async () => {
       await db?.end().catch(() => {})
       process.exit(0)

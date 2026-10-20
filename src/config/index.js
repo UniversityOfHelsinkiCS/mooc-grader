@@ -39,6 +39,13 @@ function loadConfig(env = process.env) {
     pageLimit: 50,
     // Postgres connection string of the action log; unset disables the log
     databaseUrl: env.DATABASE_URL || null,
+    // Scheduled "Doit all" grading. Only production grades on its own, so
+    // that a local run never touches real students; AUTO_GRADE=false turns
+    // it off there too. The schedule is in Finnish time.
+    autoGrade: {
+      enabled: env.NODE_ENV !== "development" && env.AUTO_GRADE !== "false",
+      schedule: env.AUTO_GRADE_SCHEDULE || "0 */4 * * *",
+    },
     tabs: validateTabs(tabs),
     auth: {
       // Comma separated, e.g. ALLOWED_UIDS=alice,bob. Unset means nobody.

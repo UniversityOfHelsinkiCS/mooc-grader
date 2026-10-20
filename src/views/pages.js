@@ -1,6 +1,12 @@
 const { getItemTexts } = require("../domain/answers")
 const { calculateGrade, RESUBMIT_INSTRUCTIONS } = require("../domain/grading")
-const { isGhaFailed, isGhaPassing, ghaOutcome } = require("../domain/repository")
+const { isGhaFailed } = require("../domain/repository")
+const {
+  RESET_REASONS,
+  answerChecks,
+  isCorrect,
+  isIncorrect,
+} = require("../domain/answerChecks")
 const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
 const { renderInvitesSummary } = require("./invitesPage")
 const {
@@ -9,52 +15,6 @@ const {
   renderChecksCell,
   renderActionCell,
 } = require("./cells")
-
-const RESET_REASONS = [
-  "repository must be accessible by user mluukkai",
-  "tests must pass in GitHub",
-  "QR-code missing",
-  "README.md does not contain the required links",
-  "the answer must be a link to a pull request",
-]
-
-// PR: approved is OK, no pull request link is missing, and a pull request
-// waiting for approval (or whose reviews could not be read) is unknown
-function answerChecks(item, { qr, gha, linkCount, pr }) {
-  const checks = []
-  if (pr) {
-    const ok = !item._prUrl ? false : item._prApprovedBy?.length > 0 ? true : null
-    checks.push({ label: "PR", ok })
-  }
-  if (item._repoUrl) {
-    checks.push({ label: "Repo", ok: item._repoExists })
-  }
-  if (qr) {
-    checks.push({ label: "QR", ok: item._qrExists })
-  }
-  if (linkCount) {
-    checks.push({ label: "Links", ok: item._linksOk })
-  }
-  if (gha) {
-    checks.push({ label: "GHA", ok: isGhaPassing(item._ghaStatus?.conclusion) })
-  }
-  return checks
-}
-
-// Correct: every check of the answer passed, the same as a PASS badge
-function isCorrect(item, courseResult) {
-  const checks = answerChecks(item, courseResult)
-  return checks.length > 0 && checks.every((check) => check.ok === true)
-}
-
-// Incorrect: a check of the answer failed, the same as a FAIL badge. An
-// answer whose GitHub Actions run is still going is not judged yet.
-function isIncorrect(item, courseResult) {
-  if (courseResult.gha && ghaOutcome(item._ghaStatus?.conclusion) === "pending") {
-    return false
-  }
-  return answerChecks(item, courseResult).some((check) => check.ok === false)
-}
 
 function optionalCell(show, value) {
   if (!show) return ""
