@@ -1,3 +1,6 @@
+/* Checked by the inline session guard (src/views/sessionGuard.js) to tell
+   that this file loaded; keep it */
+:root { --styles-loaded: 1; }
 /* Main page: centered column. body.compact: full-width tables (tab and cheaters pages) */
 body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
 body.compact { max-width: none; margin: 1rem; padding: 0; }

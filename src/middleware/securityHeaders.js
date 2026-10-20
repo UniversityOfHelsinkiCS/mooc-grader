@@ -1,8 +1,12 @@
-// Pages only load scripts and styles from /static, so everything else can be
+const { SESSION_GUARD_HASH } = require("../views/sessionGuard")
+
+// Pages only load scripts and styles from /static, plus the one inline
+// session guard script allowed by its hash, so everything else can be
 // denied. frame-ancestors / X-Frame-Options stop other sites from framing
 // the grading buttons (clickjacking).
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
+  `script-src 'self' '${SESSION_GUARD_HASH}'`,
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",

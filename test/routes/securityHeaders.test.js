@@ -2,6 +2,7 @@ const { test, describe, before, after } = require("node:test")
 const assert = require("node:assert/strict")
 const { createApp } = require("../../src/app")
 const { CONTENT_SECURITY_POLICY } = require("../../src/middleware/securityHeaders")
+const { SESSION_GUARD_SCRIPT, SESSION_GUARD_HASH } = require("../../src/views/sessionGuard")
 const { startServer } = require("../helpers")
 
 describe("security headers", () => {
@@ -91,11 +92,24 @@ describe("security headers", () => {
     assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-inline|unsafe-eval/)
   })
 
+  test("the policy allows the session guard script by its hash", () => {
+    const crypto = require("crypto")
+    const hash = crypto.createHash("sha256").update(SESSION_GUARD_SCRIPT).digest("base64")
+    assert.equal(SESSION_GUARD_HASH, `sha256-${hash}`)
+    assert.match(CONTENT_SECURITY_POLICY, new RegExp(`script-src 'self' '${SESSION_GUARD_HASH.replace(/[+/]/g, "\\$&")}'`))
+  })
+
   test("pages contain no inline scripts, styles or event handlers the policy would block", async () => {
     for (const path of ["/", "/t"]) {
       const response = await fetch(`${server.url}${path}`, { headers: { uid: "mluukkai" } })
       const html = await response.text()
-      assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/, path)
+      // the only inline script is the session guard, allowed by its hash
+      const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+      assert.deepEqual(
+        inline.map((m) => m[1]),
+        [SESSION_GUARD_SCRIPT],
+        path,
+      )
       assert.doesNotMatch(html, /<style|\sstyle=|\son[a-z]+=/i, path)
     }
   })

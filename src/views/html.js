@@ -1,3 +1,5 @@
+const { SESSION_GUARD_SCRIPT } = require("./sessionGuard")
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -38,7 +40,8 @@ function layout({
   <link rel="stylesheet" href="${escapeHtml(basePath)}/static/styles.css">
 </head>
 <body${classAttribute} data-base-path="${escapeHtml(basePath)}"${bodyAttributes}>
-${body}</body></html>`
+${body}<script>${SESSION_GUARD_SCRIPT}</script>
+</body></html>`
 }
 
 module.exports = { escapeHtml, externalLink, layout, loadingRow }
