@@ -40,8 +40,16 @@ describe("action log", () => {
       approve: async () => ({ ok: true, label: "primary" }),
     }
     const invitationService = {
+      listAccounts: () => [
+        { index: 0, label: "primary" },
+        { index: 1, label: "secondary" },
+      ],
       accept: async () => ({ error: "Invitation not found" }),
-      acceptAll: async () => ({ ok: false, done: 2, failed: [{ repo: "x/y", reason: "boom" }] }),
+      acceptAll: async (account) =>
+        account === 1
+          ? { ok: false, done: 2, failed: [{ repo: "x/y", reason: "boom" }] }
+          : { ok: true, done: 0, failed: [] },
+      declineExpired: async () => ({ ok: true, done: 1, failed: [] }),
     }
     server = await startServer(
       createApp({
@@ -148,16 +156,24 @@ describe("action log", () => {
     )
   })
 
-  test("invitation actions are logged with their outcome", async () => {
+  test("invitation actions are logged with the account label and their outcome", async () => {
     await post("/invitations/accept", { account: 0, invitationId: 7 })
     await post("/invitations/accept-all", { account: 1 })
+    await post("/invitations/decline-expired", { account: 0 })
     assert.deepEqual(
       rows.map(({ action, details, ok, error }) => [action, details, ok, error]),
       [
-        ["invite_accept", { account: 0, invitationId: 7 }, false, "Invitation not found"],
-        ["invite_accept_all", { account: 1, done: 2, failed: ["x/y"] }, false, "1 failed"],
+        ["invite_accept", { account: "primary", invitationId: 7 }, false, "Invitation not found"],
+        ["invite_accept_all", { account: "secondary", done: 2, failed: ["x/y"] }, false, "1 failed"],
+        ["invite_decline_expired", { account: "primary", done: 1 }, true, null],
       ],
     )
+  })
+
+  test("accepting all on an account without invitations is not logged", async () => {
+    const response = await post("/invitations/accept-all", { account: 0 })
+    assert.equal(response.status, 200)
+    assert.deepEqual(rows, [])
   })
 
   test("GET /log shows the rows matching the filters of the query", async () => {

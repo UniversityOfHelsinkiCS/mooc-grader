@@ -234,6 +234,11 @@ function createApiRouter({
     })
   })
 
+  // The log names an account by its label (e.g. "primary"), not its index
+  function accountLabel(index) {
+    return invitationService.listAccounts().find((account) => account.index === index)?.label ?? index
+  }
+
   function invitationAction(action) {
     return async (req, res) => {
       if (!invitationService) {
@@ -246,7 +251,7 @@ function createApiRouter({
       const log = (outcome) =>
         record(req, {
           action: `invite_${action}`,
-          details: { account, invitationId },
+          details: { account: accountLabel(account), invitationId },
           ...outcome,
         })
       try {
@@ -280,17 +285,27 @@ function createApiRouter({
       }
       // One row per account: the service reports only a count of the done ones
       const log = (outcome, details = {}) =>
-        record(req, { action: logAction, details: { account, ...details }, ...outcome })
+        record(req, {
+          action: logAction,
+          details: { account: accountLabel(account), ...details },
+          ...outcome,
+        })
       try {
         const result = await invitationService[action](account)
         if (result.error) {
           log({ ok: false, error: result.error })
           return res.status(400).json({ error: result.error })
         }
-        log(
-          { ok: result.ok, error: result.ok ? null : `${result.failed.length} failed` },
-          { done: result.done, failed: result.failed.map(({ repo }) => repo) },
-        )
+        // An account with nothing to accept or remove is not logged
+        if (result.done > 0 || result.failed.length > 0) {
+          log(
+            { ok: result.ok, error: result.ok ? null : `${result.failed.length} failed` },
+            {
+              done: result.done,
+              ...(result.failed.length > 0 ? { failed: result.failed.map(({ repo }) => repo) } : {}),
+            },
+          )
+        }
         return res.status(result.ok ? 200 : 502).json({
           ...result,
           ...(result.ok

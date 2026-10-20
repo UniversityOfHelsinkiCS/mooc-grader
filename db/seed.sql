@@ -48,8 +48,8 @@ VALUES
 
   -- Invitations
   (now() - interval '3 hours', 'mluukkai', 'invite_accept_all', NULL, NULL, NULL,
-   NULL, NULL, '{"account": 0, "done": 4, "failed": []}', true, NULL),
+   NULL, NULL, '{"account": "primary", "done": 4}', true, NULL),
   (now() - interval '2 hours', 'mluukkai', 'invite_accept', NULL, NULL, NULL,
-   NULL, NULL, '{"account": 1, "invitationId": 284711093}', true, NULL),
+   NULL, NULL, '{"account": "secondary", "invitationId": 284711093}', true, NULL),
   (now() - interval '1 hour', 'ousavola', 'invite_decline_expired', NULL, NULL, NULL,
-   NULL, NULL, '{"account": 0, "done": 1, "failed": ["example-student/part3"]}', false, '1 failed');
+   NULL, NULL, '{"account": "primary", "done": 1, "failed": ["example-student/part3"]}', false, '1 failed');
