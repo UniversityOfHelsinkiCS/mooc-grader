@@ -381,6 +381,7 @@ document.addEventListener("click", async (event) => {
       user_exercise_state_id: itemId,
       exercise_id: exerciseId,
       action: "FullPoints",
+      user_id: userExerciseStateId,
     }
 
     console.log("About to post grading with payload:", gradePayload)

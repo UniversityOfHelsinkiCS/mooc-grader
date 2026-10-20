@@ -1,4 +1,5 @@
 require("dotenv").config()
+const { Pool } = require("pg")
 const { createHttpClient } = require("./src/infra/httpClient")
 const { withCache, withConcurrencyLimit } = require("./src/infra/httpWrappers")
 const { loadConfig } = require("./src/config")
@@ -11,10 +12,16 @@ const { createStatsClient } = require("./src/clients/statsClient")
 const { createCourseService } = require("./src/services/courseService")
 const { createInvitationService } = require("./src/services/invitationService")
 const { createPullRequestService } = require("./src/services/pullRequestService")
+const { createActionLog, noActionLog } = require("./src/infra/actionLog")
 const { createApp } = require("./src/app")
 
 const config = loadConfig()
 const http = createHttpClient()
+
+const db = config.databaseUrl ? new Pool({ connectionString: config.databaseUrl }) : null
+// An idle connection dropped by the server must not crash the app
+db?.on("error", (err) => console.error("Database:", err.message))
+if (!db) console.log("DATABASE_URL not set, actions are not logged")
 
 const mooc = createMoocClient({
   http,
@@ -54,6 +61,7 @@ const app = createApp({
     onApproved: github.forgetRepo,
   }),
   stats: createStatsClient({ http }),
+  actionLog: db ? createActionLog({ db }) : noActionLog,
   auth: config.auth,
   basePath: config.basePath,
 })
@@ -68,7 +76,10 @@ const server = app.listen(config.port, () => {
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`)
-    server.close(() => process.exit(0))
+    server.close(async () => {
+      await db?.end().catch(() => {})
+      process.exit(0)
+    })
     setTimeout(() => process.exit(1), 10_000).unref()
   })
 }

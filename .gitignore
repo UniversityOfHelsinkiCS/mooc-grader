@@ -108,6 +108,8 @@ cookie
 .claude/settings.local.json
 
 # exclusions here
+!db/schema.sql
+!db/seed.sql
 !.env.template
 !.env.sample
 !.env.example

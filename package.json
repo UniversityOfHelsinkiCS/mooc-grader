@@ -15,6 +15,7 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "pg": "8.23.1",
     "unfuck-utf8-headers-middleware": "1.0.1"
   }
 }

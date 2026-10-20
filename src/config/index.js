@@ -37,6 +37,8 @@ function loadConfig(env = process.env) {
     githubConcurrency: 8,
     cookie: fs.readFileSync(env.COOKIE_FILE || "cookie", "utf8").trim(),
     pageLimit: 50,
+    // Postgres connection string of the action log; unset disables the log
+    databaseUrl: env.DATABASE_URL || null,
     tabs: validateTabs(tabs),
     auth: {
       // Comma separated, e.g. ALLOWED_UIDS=alice,bob. Unset means nobody.

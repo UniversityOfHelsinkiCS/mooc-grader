@@ -37,6 +37,7 @@ async function postGrade(button, justification = null) {
     user_exercise_state_id: button.dataset.userId,
     exercise_id: button.dataset.exerciseId,
     action: justification ? "Other" : button.dataset.action,
+    user_id: button.dataset.studentId,
   }
   if (justification) body.justification = justification
   try {
@@ -74,6 +75,7 @@ async function postApprovePr(button) {
       body: JSON.stringify({
         exercise_id: button.dataset.exerciseId,
         pr_url: button.dataset.prUrl,
+        user_id: button.dataset.studentId,
       }),
     })
     const data = await response.json()

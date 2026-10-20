@@ -133,6 +133,7 @@ function gradeButton(action, cssClass, label, attributes) {
 
 // data-user-id carries the answer's user_exercise_state_id, except for the
 // Completion button where it is the user id and data-item-id is the answer.
+// data-student-id is the user id, sent along only for the action log.
 // completionTabId: the tab completions are submitted from; it replaces
 // Full points with Completion. correct: all checks of the answer passed,
 // incorrect: one of them failed (marks the answers "Reset all incorrect" resets).
@@ -156,6 +157,7 @@ function renderActionCell({
   prMissing = false,
 }) {
   const target = { "user-id": itemId, "exercise-id": exerciseId }
+  const student = { "student-id": userId ?? undefined }
 
   // data-correct marks the answers "Full points to all correct" grades
   const fullPointsBtn = completionTabId
@@ -163,6 +165,7 @@ function renderActionCell({
     : gradeButton("FullPoints", null, "Full points", {
         ...target,
         correct: correct && "true",
+        ...student,
       })
   const completionBtn =
     completionTabId && userId
@@ -182,18 +185,20 @@ function renderActionCell({
     "links-missing": linksMissing && "true",
     "pr-missing": prMissing && "true",
     incorrect: incorrect && "true",
+    ...student,
   })
   const zeroPointsBtn = gradeButton(
     "ZeroPoints",
     "grade-btn-zero",
     "Zero points",
-    target,
+    { ...target, ...student },
   )
 
   const approvePrBtn = prUrl
     ? gradeButton("ApprovePr", prApproved ? "grade-btn-green grade-btn-selected" : "grade-btn-green", "Approve PR", {
         "pr-url": prUrl,
         "exercise-id": exerciseId,
+        ...student,
       })
     : ""
 

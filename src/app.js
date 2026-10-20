@@ -21,6 +21,8 @@ function createApp({
   invitationService = null,
   pullRequestService = null,
   stats = null,
+  // Records the button actions and shows them on /log; none is a no-op log
+  actionLog,
   auth,
   basePath = "",
 }) {
@@ -34,8 +36,12 @@ function createApp({
   router.use(requireSameOrigin)
   router.use(express.json())
   router.use("/static", express.static(path.join(__dirname, "..", "public")))
-  router.use(createApiRouter({ tabs, mooc, invitationService, pullRequestService }))
-  router.use(createPageRouter({ tabs, courseService, invitationService, stats, basePath }))
+  router.use(
+    createApiRouter({ tabs, mooc, invitationService, pullRequestService, actionLog }),
+  )
+  router.use(
+    createPageRouter({ tabs, courseService, invitationService, stats, actionLog, basePath }),
+  )
 
   app.use(basePath || "/", router)
   return app

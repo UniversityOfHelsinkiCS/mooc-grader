@@ -241,7 +241,8 @@ ${renderTabTable(manualTabs, basePath)}
   return layout({
     title: "Answers requiring attention",
     basePath,
-    body: `${invites}<h1>Answers requiring attention${gradeAllTabs}</h1>
+    body: `<nav class="top-nav"><a href="${escapeHtml(basePath)}/log">Action log</a></nav>
+${invites}<h1>Answers requiring attention${gradeAllTabs}</h1>
 ${renderTabTable(gradedTabs, basePath, "tab-summary")}
 ${manual}${renderSuotarTable(basePath)}
   <script src="${escapeHtml(basePath)}/static/bulkGrading.js"></script>

@@ -12,7 +12,11 @@ const {
   renderInvitesPage,
   renderInvitesSummaryRow,
 } = require("../views/invitesPage")
+const { renderLogPage, parseLogQuery } = require("../views/logPage")
 const { findTab, findCheatersCourse } = require("../config/tabs")
+const { noActionLog } = require("../infra/actionLog")
+
+const LOG_PAGE_SIZE = 200
 
 function errorPage(res, status, message) {
   return res.status(status).send(`<pre>${escapeHtml(message)}</pre>`)
@@ -31,6 +35,7 @@ function createPageRouter({
   courseService,
   invitationService,
   stats,
+  actionLog = noActionLog,
   basePath,
 }) {
   const router = express.Router()
@@ -84,6 +89,24 @@ function createPageRouter({
       const accounts = await invitationService.fetchInvitations()
       res.send(
         renderInvitesPage(accounts, invitationService.recentlyAccepted(), { basePath }),
+      )
+    } catch (err) {
+      errorPage(res, 500, err.message)
+    }
+  })
+
+  router.get("/log", async (req, res) => {
+    const { before, filters } = parseLogQuery(req.query)
+    try {
+      const rows = await actionLog.recent({ limit: LOG_PAGE_SIZE, before, filters })
+      res.send(
+        renderLogPage(rows, {
+          tabs,
+          filters,
+          limit: LOG_PAGE_SIZE,
+          enabled: actionLog.enabled,
+          basePath,
+        }),
       )
     } catch (err) {
       errorPage(res, 500, err.message)

@@ -70,3 +70,15 @@ body:has(#show-user-ids:checked) .user-id { display: table-cell; }
 h1 .grade-btn { vertical-align: middle; margin-left: 0.75rem; font-size: 0.9rem; }
 h1 .grade-result { font-size: 0.9rem; font-weight: normal; vertical-align: middle; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+/* Action log page */
+.log-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.log-filters input:not([type]), .log-filters input[type="date"], .log-filters select { padding: 0.3rem; font: inherit; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; }
+.log-filters-label { font-weight: 600; }
+.log-filters .active, .log-filters label.active { background: #ddf4ff; border-color: #0969da; }
+.log-filters label.active { border: 1px solid #0969da; border-radius: 4px; padding: 0.2rem 0.4rem; }
+table.log td { font-size: 0.9rem; vertical-align: top; }
+.log-time { white-space: nowrap; }
+.log-id { font-family: monospace; }
+.log-detail { color: #656d76; }
+.log-ranges { margin: 0 0 0.5rem; }
+.top-nav { display: flex; justify-content: flex-end; gap: 1rem; font-weight: 600; }

@@ -13,6 +13,12 @@ function findCourseByExercise(tabs, exerciseId) {
   return allCourses(tabs).find((course) => course.exerciseId === exerciseId) ?? null
 }
 
+function findTabByExercise(tabs, exerciseId) {
+  return (
+    tabs.find((tab) => tab.courses.some((course) => course.exerciseId === exerciseId)) ?? null
+  )
+}
+
 function findCheatersCourse(tabs, courseId) {
   return (
     allCourses(tabs).find(
@@ -33,6 +39,7 @@ const RESERVED_TAB_IDS = [
   "invitations",
   "approve-pr",
   "dismiss-all-cheaters",
+  "log",
 ]
 
 function validateTabs(tabs) {
@@ -79,6 +86,7 @@ module.exports = {
   allCourses,
   findTab,
   findCourseByExercise,
+  findTabByExercise,
   findCheatersCourse,
   validateTabs,
 }
