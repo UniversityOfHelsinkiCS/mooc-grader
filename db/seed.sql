@@ -46,6 +46,16 @@ VALUES
   (now() - interval '18 hours' + interval '1 second', 'mluukkai', 'cheater_dismiss', 'fullstack', '37e36bf4-f000-49c7-b420-965d8da82d92', NULL,
    gen_random_uuid(), NULL, '{"bulk": true}', true, NULL),
 
+  -- A scheduled run: its actions, then the row of the run
+  (now() - interval '8 hours', 'node-cron', 'invite_accept_all', NULL, NULL, NULL,
+   NULL, NULL, '{"account": "primary", "done": 1}', true, NULL),
+  (now() - interval '8 hours' + interval '2 seconds', 'node-cron', 'full_points', 'fullstack', 'a7a567d8-ff46-44db-a08e-26073bb07fc6', '83609a83-2022-4ed7-820c-79538604869e',
+   gen_random_uuid(), gen_random_uuid(), NULL, true, NULL),
+  (now() - interval '8 hours' + interval '2 seconds', 'node-cron', 'auto_grade_run', NULL, NULL, NULL,
+   NULL, NULL, '{"invitations": 1, "approved": 0, "full_points": 1, "reset": 0, "failed": 0}', true, NULL),
+  (now() - interval '4 hours', 'node-cron', 'auto_grade_run', NULL, NULL, NULL,
+   NULL, NULL, '{"invitations": 0, "approved": 0, "full_points": 0, "reset": 0, "failed": 0}', true, NULL),
+
   -- Invitations
   (now() - interval '3 hours', 'mluukkai', 'invite_accept_all', NULL, NULL, NULL,
    NULL, NULL, '{"account": "primary", "done": 4}', true, NULL),

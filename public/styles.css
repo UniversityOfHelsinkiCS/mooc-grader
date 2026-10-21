@@ -83,3 +83,5 @@ table.log td { font-size: 0.9rem; vertical-align: top; }
 .log-ranges { margin: 0 0 0.5rem; }
 .top-nav { display: flex; justify-content: flex-end; gap: 1rem; font-weight: 600; }
 .log-cron { background: #8250df; }
+table.log tr.log-run td { border-top: 3px solid #8250df; }
+.log-cron { white-space: nowrap; }

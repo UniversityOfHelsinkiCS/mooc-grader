@@ -105,9 +105,15 @@ function courseName(tabs, row) {
   return row.course_id ? shortId(row.course_id) : ""
 }
 
+// Postgres jsonb does not keep the order of the keys, so the known ones are
+// shown in the order of a run: invitations first, failures last
+const DETAIL_ORDER = ["invitations", "approved", "full_points", "reset", "failed", "not_loaded"]
+const detailRank = (key) => (DETAIL_ORDER.includes(key) ? DETAIL_ORDER.indexOf(key) : -1)
+
 function renderDetails(details) {
   if (!details) return ""
   return Object.entries(details)
+    .sort(([a], [b]) => detailRank(a) - detailRank(b))
     .map(([key, value]) => {
       const shown =
         typeof value === "string" && /^https:\/\//.test(value)
@@ -136,7 +142,10 @@ function renderLogRow(row, tabs, basePath, filters) {
   const result = row.ok
     ? `<span class="grade-ok">ok</span>`
     : `<span class="grade-fail">failed${row.error ? `: ${escapeHtml(row.error)}` : ""}</span>`
-  return `<tr><td class="log-time">${escapeHtml(TIME_FORMAT.format(new Date(row.created_at)))}</td><td>${actor}</td><td>${action}</td><td>${tab}</td><td>${courseName(tabs, row)}</td><td>${student}</td><td>${answer}</td><td>${renderDetails(row.details)}</td><td>${result}</td></tr>`
+  // A scheduled run is logged after its actions, so newest first its row
+  // starts the group of them; the border separates the runs
+  const rowClass = row.action === "auto_grade_run" ? ' class="log-run"' : ""
+  return `<tr${rowClass}><td class="log-time">${escapeHtml(TIME_FORMAT.format(new Date(row.created_at)))}</td><td>${actor}</td><td>${action}</td><td>${tab}</td><td>${courseName(tabs, row)}</td><td>${student}</td><td>${answer}</td><td>${renderDetails(row.details)}</td><td>${result}</td></tr>`
 }
 
 // Quick ranges ending today; the selected one is shown in bold

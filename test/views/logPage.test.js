@@ -107,11 +107,13 @@ describe("renderLogPage", () => {
 
   test("marks the rows of the scheduled grading", () => {
     const html = renderLogPage(
-      [row({ actor_uid: "node-cron", action: "auto_grade_run", details: { full_points: 3 } })],
+      [row({ actor_uid: "node-cron", action: "auto_grade_run", details: { reset: 1, failed: 0, full_points: 3, invitations: 2 } })],
       { tabs, filters, limit: 200 },
     )
     assert.ok(html.includes('<span class="badge log-cron">node-cron</span>'))
     assert.ok(html.includes(">Scheduled run</a>"))
+    assert.ok(html.includes('<tr class="log-run">'))
+    assert.deepEqual([...html.matchAll(/log-detail">(\w+):/g)].map((m) => m[1]), ["invitations", "full_points", "reset", "failed"])
   })
 
   test("says when the log is off", () => {
