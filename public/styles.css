@@ -81,6 +81,11 @@ table.log td { font-size: 0.9rem; vertical-align: top; }
 .log-id { font-family: monospace; }
 .log-detail { color: #656d76; }
 .log-ranges { margin: 0 0 0.5rem; }
+.log-views { display: flex; gap: 0.25rem; border-bottom: 1px solid #d0d7de; margin-bottom: 0.75rem; }
+.log-views a { padding: 0.4rem 1rem; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; margin-bottom: -1px; color: #656d76; text-decoration: none; font-weight: 600; }
+.log-views a:hover { color: #1f2328; background: #f6f8fa; }
+.log-views a.active { color: #1f2328; background: #fff; border-color: #d0d7de; }
+table.log tr.log-day td { border-top: 3px solid #d0d7de; }
 .top-nav { display: flex; justify-content: flex-end; gap: 1rem; font-weight: 600; }
 .log-cron { background: #8250df; }
 table.log tr.log-run td { border-top: 3px solid #8250df; }

@@ -22,11 +22,10 @@ const INSERT = `INSERT INTO action_log (${COLUMNS.join(", ")}) VALUES (${COLUMNS
   (_, i) => `$${i + 1}`,
 ).join(", ")})`
 
-// One fixed query for every combination of filters: a filter whose value
-// is null (or false for $6) matches every row. $7 and $8 are dates, both
-// included, as whole days in Finnish time.
-const RECENT = `
-  SELECT * FROM action_log
+// One fixed condition for every combination of filters: a filter whose
+// value is null (or false for $6) matches every row. $7 and $8 are dates,
+// both included, as whole days in Finnish time.
+const WHERE = `
   WHERE ($1::bigint IS NULL OR id < $1)
     AND ($2::text IS NULL OR actor_uid = $2)
     AND ($3::text IS NULL OR action = $3)
@@ -35,9 +34,37 @@ const RECENT = `
     AND (NOT $6::boolean OR NOT ok)
     AND ($7::date IS NULL OR created_at >= $7::date::timestamp AT TIME ZONE 'Europe/Helsinki')
     AND ($8::date IS NULL OR created_at < ($8::date + 1)::timestamp AT TIME ZONE 'Europe/Helsinki')
+`
+
+const RECENT = `
+  SELECT * FROM action_log
+  ${WHERE}
   ORDER BY id DESC
   LIMIT $9
 `
+
+// The counts of each action per day in Finnish time, course and admin. The
+// day is text, as pg would turn a date into a Date at local midnight.
+const SUMMARY = `
+  SELECT to_char(created_at AT TIME ZONE 'Europe/Helsinki', 'YYYY-MM-DD') AS day,
+    tab_id, course_id, exercise_id, actor_uid, action,
+    count(*)::int AS count, (count(*) FILTER (WHERE NOT ok))::int AS failed
+  FROM action_log
+  ${WHERE}
+  GROUP BY day, tab_id, course_id, exercise_id, actor_uid, action
+  ORDER BY day DESC
+`
+
+const filterValues = (filters, before = null) => [
+  before ?? null,
+  filters.actor ?? null,
+  filters.action ?? null,
+  filters.tabId ?? null,
+  filters.userId ?? null,
+  !!filters.failed,
+  filters.from ?? null,
+  filters.to ?? null,
+]
 
 // db: anything with query(text, values), e.g. a pg Pool
 function createActionLog({ db }) {
@@ -65,24 +92,22 @@ function createActionLog({ db }) {
   // optional; from and to are dates "YYYY-MM-DD" in Finnish time, both
   // included
   async function recent({ limit = 100, before = null, filters = {} } = {}) {
-    const { rows } = await db.query(RECENT, [
-      before ?? null,
-      filters.actor ?? null,
-      filters.action ?? null,
-      filters.tabId ?? null,
-      filters.userId ?? null,
-      !!filters.failed,
-      filters.from ?? null,
-      filters.to ?? null,
-      limit,
-    ])
+    const { rows } = await db.query(RECENT, [...filterValues(filters, before), limit])
     return rows
   }
 
-  return { enabled: true, log, recent }
+  // Newest day first, the counts of the actions matching the filters of
+  // recent: { day, tab_id, course_id, exercise_id, actor_uid, action,
+  // count, failed }
+  async function summary({ filters = {} } = {}) {
+    const { rows } = await db.query(SUMMARY, filterValues(filters))
+    return rows
+  }
+
+  return { enabled: true, log, recent, summary }
 }
 
 // Used when no database is configured, e.g. in local development
-const noActionLog = { enabled: false, log: async () => {}, recent: async () => [] }
+const noActionLog = { enabled: false, log: async () => {}, recent: async () => [], summary: async () => [] }
 
 module.exports = { createActionLog, noActionLog }

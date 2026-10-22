@@ -28,6 +28,7 @@ describe("action log", () => {
   let upstream
   const rows = []
   const recentQueries = []
+  const summaryQueries = []
 
   before(async () => {
     const mooc = {
@@ -63,6 +64,10 @@ describe("action log", () => {
           log: async (entry) => rows.push(entry),
           recent: async (query) => {
             recentQueries.push(query)
+            return []
+          },
+          summary: async (query) => {
+            summaryQueries.push(query)
             return []
           },
         },
@@ -177,10 +182,17 @@ describe("action log", () => {
   })
 
   test("GET /log shows the rows matching the filters of the query", async () => {
-    const response = await fetch(`${server.url}/log?action=reset&failed=1`, { headers: { uid: "mluukkai" } })
+    const response = await fetch(`${server.url}/log?view=actions&action=reset&failed=1`, { headers: { uid: "mluukkai" } })
     assert.equal(response.status, 200)
     assert.match(await response.text(), /<h1>Action log<\/h1>/)
     assert.equal(recentQueries.at(-1).filters.action, "reset")
     assert.equal(recentQueries.at(-1).filters.failed, true)
+  })
+
+  test("GET /log shows the daily counts matching the filters by default", async () => {
+    const response = await fetch(`${server.url}/log?tab=fs`, { headers: { uid: "mluukkai" } })
+    assert.equal(response.status, 200)
+    assert.match(await response.text(), /<a href="\/log\?tab=fs" class="active" aria-current="page">Daily summary<\/a>/)
+    assert.equal(summaryQueries.at(-1).filters.tabId, "fs")
   })
 })

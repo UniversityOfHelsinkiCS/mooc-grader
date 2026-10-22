@@ -35,18 +35,20 @@ describe("parseLogQuery", () => {
       parseLogQuery({ actor: "mluukkai", action: "reset", tab: "fs", failed: "1", before: "42", from: "2026-10-01", to: "2026-10-20" }),
       {
         before: "42",
-        filters: { actor: "mluukkai", action: "reset", tabId: "fs", userId: null, failed: true, from: "2026-10-01", to: "2026-10-20" },
+        filters: { actor: "mluukkai", action: "reset", tabId: "fs", userId: null, failed: true, from: "2026-10-01", to: "2026-10-20", view: null },
       },
     )
-    assert.deepEqual(parseLogQuery({ action: "drop table", before: "-1", actor: ["a", "b"], from: "2026-13-45", to: "yesterday" }), {
+    assert.deepEqual(parseLogQuery({ action: "drop table", before: "-1", actor: ["a", "b"], from: "2026-13-45", to: "yesterday", view: "other" }), {
       before: null,
-      filters: { actor: null, action: null, tabId: null, userId: null, failed: false, from: null, to: null },
+      filters: { actor: null, action: null, tabId: null, userId: null, failed: false, from: null, to: null, view: null },
     })
+    assert.equal(parseLogQuery({ view: "actions" }).filters.view, "actions")
   })
 })
 
 describe("renderLogPage", () => {
-  const filters = parseLogQuery({}).filters
+  // Most tests are of the list of the actions; the summary is the default
+  const filters = parseLogQuery({ view: "actions" }).filters
 
   test("shows a row in Finnish time with names from the configuration", () => {
     const html = renderLogPage(
@@ -68,7 +70,7 @@ describe("renderLogPage", () => {
     assert.ok(html.includes(">Reset</a>"))
     assert.ok(html.includes(">Full stack</a>"))
     assert.ok(html.includes("<td>graphql</td>"))
-    assert.ok(html.includes(`href="/log?user=${STUDENT}"`))
+    assert.ok(html.includes(`href="/log?user=${STUDENT}&amp;view=actions"`))
     assert.ok(html.includes("&lt;b&gt;tests&lt;/b&gt; must pass"))
     assert.ok(html.includes("failed: 500"))
     assert.ok(!html.includes("Older"))
@@ -80,28 +82,28 @@ describe("renderLogPage", () => {
       filters: { ...filters, action: "reset" },
       limit: 2,
     })
-    assert.ok(html.includes('href="/log?action=reset&amp;before=7"'))
+    assert.ok(html.includes('href="/log?action=reset&amp;view=actions&amp;before=7"'))
   })
 
   test("offers quick ranges ending today in Finnish time", () => {
     // 23:30 UTC is already the next day in Finland
     const now = new Date("2026-10-20T23:30:00Z")
     const html = renderLogPage([], { tabs, filters: { ...filters, from: "2026-10-15" }, limit: 200, now })
-    assert.ok(html.includes('href="/log?from=2026-10-21">today</a>'))
-    assert.ok(html.includes('<strong><a href="/log?from=2026-10-15">last 7 days</a></strong>'))
-    assert.ok(html.includes('href="/log?from=2026-09-22">last 30 days</a>'))
+    assert.ok(html.includes('href="/log?from=2026-10-21&amp;view=actions">today</a>'))
+    assert.ok(html.includes('<strong><a href="/log?from=2026-10-15&amp;view=actions">last 7 days</a></strong>'))
+    assert.ok(html.includes('href="/log?from=2026-09-22&amp;view=actions">last 30 days</a>'))
     assert.ok(html.includes('name="from" value="2026-10-15"'))
   })
 
   test("highlights the filters in use and offers clearing them only then", () => {
     const plain = renderLogPage([], { tabs, filters, limit: 200 })
     assert.ok(!plain.includes("clear filters"))
-    assert.ok(!plain.includes('class="active"'))
+    assert.ok(!plain.includes('class="active">'))
 
     const filtered = renderLogPage([], { tabs, filters: { ...filters, action: "reset", failed: true }, limit: 200 })
     assert.ok(filtered.includes('<select name="action" class="active">'))
     assert.ok(filtered.includes('<label class="active"><input type="checkbox" name="failed" value="1" checked>'))
-    assert.ok(filtered.includes('<a href="/log">clear filters</a>'))
+    assert.ok(filtered.includes('<a href="/log?view=actions">clear filters</a>'))
     assert.ok(filtered.includes('/static/logPage.js'))
   })
 
@@ -114,6 +116,32 @@ describe("renderLogPage", () => {
     assert.ok(html.includes(">Scheduled run</a>"))
     assert.ok(html.includes('<tr class="log-run">'))
     assert.deepEqual([...html.matchAll(/log-detail">(\w+):/g)].map((m) => m[1]), ["invitations", "full_points", "reset", "failed"])
+  })
+
+  test("the summary counts the actions per day and course", () => {
+    const count = (fields) => ({ day: "2026-10-20", tab_id: null, course_id: null, exercise_id: null, actor_uid: "mluukkai", action: "full_points", count: 1, failed: 0, ...fields })
+    const html = renderLogPage(
+      [
+        count({ day: "2026-10-19", exercise_id: "ex1", action: "reset", count: 2 }),
+        count({ action: "auto_grade_run", actor_uid: "node-cron", count: 6 }),
+        count({ exercise_id: "ex1", action: "reset", count: 3, failed: 1 }),
+        count({ course_id: "c1", actor_uid: "node-cron", count: 4 }),
+      ],
+      { tabs, filters: { ...filters, view: null, tabId: "fs" }, limit: 200 },
+    )
+    const days = [...html.matchAll(/rowspan="(\d)"><a href="([^"]+)">([\d-]+)</g)].map((m) => [m[3], m[1], m[2]])
+    assert.deepEqual(days, [
+      ["2026-10-20", "2", "/log?tab=fs&amp;from=2026-10-20&amp;to=2026-10-20&amp;view=actions"],
+      ["2026-10-19", "1", "/log?tab=fs&amp;from=2026-10-19&amp;to=2026-10-19&amp;view=actions"],
+    ])
+    // ex1 and c1 are the same course; the rows without a course come last
+    assert.ok(html.includes('<td>graphql</td><td>Full points: 4<br>Reset: 3 <span class="grade-fail">(1 failed)</span></td><td>mluukkai, <span class="badge log-cron">node-cron</span></td><td>7</td><td><span class="grade-fail">1</span></td>'))
+    assert.ok(html.indexOf("graphql") < html.indexOf("no course"))
+    assert.ok(html.includes("Scheduled run: 6"))
+    assert.ok(!html.includes('type="hidden" name="view"'))
+    assert.ok(html.includes('<a href="/log">clear filters</a>'))
+    assert.ok(html.includes('<a href="/log?tab=fs" class="active" aria-current="page">Daily summary</a><a href="/log?tab=fs&amp;view=actions">All actions</a>'))
+    assert.ok(!html.includes("Older"))
   })
 
   test("says when the log is off", () => {

@@ -68,4 +68,22 @@ describe("createActionLog", () => {
     assert.match(queries[0].text, /ORDER BY id DESC/)
     assert.deepEqual(queries[0].values, ["10", "mluukkai", "reset", null, null, true, "2026-10-01", null, 50])
   })
+
+  test("the summary counts the actions per Finnish day with the same filters", async () => {
+    const queries = []
+    const actionLog = createActionLog({
+      db: {
+        query: async (text, values) => {
+          queries.push({ text, values })
+          return { rows: [] }
+        },
+      },
+    })
+
+    await actionLog.summary({ filters: { tabId: "fs", to: "2026-10-20" } })
+
+    assert.match(queries[0].text, /GROUP BY day, tab_id, course_id, exercise_id, actor_uid, action/)
+    assert.match(queries[0].text, /AT TIME ZONE 'Europe\/Helsinki', 'YYYY-MM-DD'\) AS day/)
+    assert.deepEqual(queries[0].values, [null, null, null, "fs", null, false, null, "2026-10-20"])
+  })
 })

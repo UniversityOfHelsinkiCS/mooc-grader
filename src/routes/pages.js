@@ -98,7 +98,10 @@ function createPageRouter({
   router.get("/log", async (req, res) => {
     const { before, filters } = parseLogQuery(req.query)
     try {
-      const rows = await actionLog.recent({ limit: LOG_PAGE_SIZE, before, filters })
+      const rows =
+        filters.view === "actions"
+          ? await actionLog.recent({ limit: LOG_PAGE_SIZE, before, filters })
+          : await actionLog.summary({ filters })
       res.send(
         renderLogPage(rows, {
           tabs,

@@ -25,7 +25,12 @@ const FILTER_PARAMS = {
   failed: "failed",
   from: "from",
   to: "to",
+  view: "view",
 }
+
+// The page counts the actions per day and course, or with view=actions
+// lists them one by one
+const VIEWS = ["actions"]
 
 // "2026-10-20 12:14:02", Finnish time
 const TIME_FORMAT = new Intl.DateTimeFormat("sv-SE", {
@@ -81,6 +86,7 @@ function parseLogQuery(query) {
       failed: query.failed === "1",
       from: isDate(query.from) ? query.from : null,
       to: isDate(query.to) ? query.to : null,
+      view: VIEWS.includes(query.view) ? query.view : null,
     },
   }
 }
@@ -179,11 +185,12 @@ function renderFilterForm(tabs, filters, basePath) {
   const tabOptions = tabs.map((tab) => option(tab.id, tab.name, filters.tabId === tab.id)).join("")
   const input = (name, value, placeholder, type = null) =>
     `<input${type ? ` type="${type}"` : ""} name="${name}" value="${escapeHtml(value ?? "")}"${placeholder ? ` placeholder="${placeholder}"` : ""}${active(value)}>`
-  const anyActive = Object.keys(FILTER_PARAMS).some((key) => filters[key])
+  const anyActive = Object.keys(FILTER_PARAMS).some((key) => key !== "view" && filters[key])
   const clear = anyActive
-    ? ` <a href="${escapeHtml(basePath)}/log">clear filters</a>`
+    ? ` <a href="${escapeHtml(logUrl(basePath, { view: filters.view }))}">clear filters</a>`
     : ""
-  return `<form class="log-filters" method="get" action="${escapeHtml(basePath)}/log">
+  const view = filters.view ? `<input type="hidden" name="view" value="${escapeHtml(filters.view)}">` : ""
+  return `<form class="log-filters" method="get" action="${escapeHtml(basePath)}/log">${view}
 <span class="log-filters-label">Show only:</span>
 ${input("actor", filters.actor, "admin uid")}
 <select name="action"${active(filters.action)}>${option("", "all actions", !filters.action)}${actions}</select>
@@ -195,8 +202,82 @@ ${input("user", filters.userId, "student user id")}
 </form>`
 }
 
-// rows: newest first; when there are limit of them, the page links to the
-// older ones. enabled: false when no database is configured
+// Tabs switching between the summary and the list of the actions, keeping
+// the filters
+function renderViewLinks(filters, basePath) {
+  const tab = (view, label) => {
+    const current = filters.view === view ? ' class="active" aria-current="page"' : ""
+    return `<a href="${escapeHtml(logUrl(basePath, { ...filters, view }))}"${current}>${label}</a>`
+  }
+  return `<nav class="log-views">${tab(null, "Daily summary")}${tab("actions", "All actions")}</nav>`
+}
+
+// Summary rows of the same day and course, told apart by the course name
+// shown, are merged; actions without a course come last in their day
+function summarize(rows, tabs) {
+  const days = new Map()
+  for (const row of rows) {
+    if (!days.has(row.day)) days.set(row.day, new Map())
+    const courses = days.get(row.day)
+    const name = courseName(tabs, row)
+    if (!courses.has(name)) courses.set(name, { name, actions: new Map(), actors: new Set(), count: 0, failed: 0 })
+    const course = courses.get(name)
+    const action = course.actions.get(row.action) ?? { count: 0, failed: 0 }
+    course.actions.set(row.action, { count: action.count + row.count, failed: action.failed + row.failed })
+    if (row.actor_uid) course.actors.add(row.actor_uid)
+    course.count += row.count
+    course.failed += row.failed
+  }
+  const byName = (a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name)
+  return [...days.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([day, courses]) => ({ day, courses: [...courses.values()].sort(byName) }))
+}
+
+function renderSummary(rows, tabs, basePath, filters) {
+  const days = summarize(rows, tabs)
+  if (days.length === 0) return `<p class="none">No actions.</p>`
+  const actionOrder = Object.keys(ACTION_LABELS)
+  const body = days
+    .map(({ day, courses }) =>
+      courses
+        .map((course, i) => {
+          // The day opens the actions of that day only
+          const dayCell =
+            i === 0
+              ? `<td class="log-time" rowspan="${courses.length}"><a href="${escapeHtml(logUrl(basePath, { ...filters, view: "actions", from: day, to: day }))}">${escapeHtml(day)}</a></td>`
+              : ""
+          const actions = [...course.actions.entries()]
+            .sort(([a], [b]) => actionOrder.indexOf(a) - actionOrder.indexOf(b))
+            .map(([action, { count, failed }]) => {
+              const label = escapeHtml(ACTION_LABELS[action] ?? action)
+              const fails = failed ? ` <span class="grade-fail">(${failed} failed)</span>` : ""
+              return `${label}: ${count}${fails}`
+            })
+            .join("<br>")
+          const actors = [...course.actors]
+            .sort()
+            .map((actor) =>
+              actor === AUTO_GRADER_ACTOR
+                ? `<span class="badge log-cron">${escapeHtml(actor)}</span>`
+                : escapeHtml(actor),
+            )
+            .join(", ")
+          const failed = course.failed
+            ? `<span class="grade-fail">${course.failed}</span>`
+            : `<span class="grade-ok">0</span>`
+          return `<tr${i === 0 ? ' class="log-day"' : ""}>${dayCell}<td>${course.name || `<span class="none">no course</span>`}</td><td>${actions}</td><td>${actors}</td><td>${course.count}</td><td>${failed}</td></tr>`
+        })
+        .join(""),
+    )
+    .join("")
+  return `<table class="log"><thead><tr><th>Day</th><th>Course</th><th>Actions</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${body}</tbody></table>`
+}
+
+// rows: the counts of the actions per day, see actionLog.summary. With
+// filters.view "actions", rows are the actions newest first instead; when
+// there are limit of them, the page links to the older ones.
+// enabled: false when no database is configured
 function renderLogPage(
   rows,
   { tabs, filters, limit, enabled = true, basePath = "", now = new Date() },
@@ -209,21 +290,22 @@ function renderLogPage(
       body: `${back}<h1>Action log</h1><p class="none">The action log is off: DATABASE_URL is not set.</p>`,
     })
   }
-  const table =
-    rows.length === 0
+  const table = filters.view !== "actions"
+    ? renderSummary(rows, tabs, basePath, filters)
+    : rows.length === 0
       ? `<p class="none">No actions.</p>`
       : `<table class="log"><thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Tab</th><th>Course</th><th>Student</th><th>Answer</th><th>Details</th><th>Result</th></tr></thead><tbody>${rows
           .map((row) => renderLogRow(row, tabs, basePath, filters))
           .join("")}</tbody></table>`
   const older =
-    rows.length === limit
+    filters.view === "actions" && rows.length === limit
       ? `<p><a href="${escapeHtml(logUrl(basePath, filters, { before: rows.at(-1).id }))}">Older &rarr;</a></p>`
       : ""
   return layout({
     title: "Action log",
     basePath,
     bodyClass: "compact",
-    body: `${back}<h1>Action log</h1>${renderRangeLinks(filters, basePath, now)}${renderFilterForm(tabs, filters, basePath)}${table}${older}
+    body: `${back}<h1>Action log</h1>${renderViewLinks(filters, basePath)}${renderRangeLinks(filters, basePath, now)}${renderFilterForm(tabs, filters, basePath)}${table}${older}
   <script src="${escapeHtml(basePath)}/static/logPage.js"></script>`,
   })
 }
