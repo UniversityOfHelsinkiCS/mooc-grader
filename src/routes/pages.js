@@ -102,10 +102,16 @@ function createPageRouter({
         filters.view === "actions"
           ? await actionLog.recent({ limit: LOG_PAGE_SIZE, before, filters })
           : await actionLog.summary({ filters })
+      // The report lists the failed actions of the range below the counts
+      const failures =
+        filters.view === "report"
+          ? await actionLog.recent({ limit: LOG_PAGE_SIZE, filters: { ...filters, failed: true } })
+          : []
       res.send(
         renderLogPage(rows, {
           tabs,
           filters,
+          failures,
           limit: LOG_PAGE_SIZE,
           enabled: actionLog.enabled,
           basePath,

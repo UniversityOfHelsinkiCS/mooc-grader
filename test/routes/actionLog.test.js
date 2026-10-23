@@ -195,4 +195,13 @@ describe("action log", () => {
     assert.match(await response.text(), /<a href="\/log\?tab=fs" class="active" aria-current="page">Daily summary<\/a>/)
     assert.equal(summaryQueries.at(-1).filters.tabId, "fs")
   })
+
+  test("GET /log?view=report sums up the range and lists its failed actions", async () => {
+    const response = await fetch(`${server.url}/log?view=report&from=2026-10-12&to=2026-10-18`, { headers: { uid: "mluukkai" } })
+    assert.equal(response.status, 200)
+    assert.match(await response.text(), /<h2>Report: 2026-10-12 – 2026-10-18<\/h2>/)
+    assert.equal(summaryQueries.at(-1).filters.from, "2026-10-12")
+    assert.equal(recentQueries.at(-1).filters.to, "2026-10-18")
+    assert.equal(recentQueries.at(-1).filters.failed, true)
+  })
 })

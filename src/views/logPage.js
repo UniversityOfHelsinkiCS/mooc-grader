@@ -28,9 +28,9 @@ const FILTER_PARAMS = {
   view: "view",
 }
 
-// The page counts the actions per day and course, or with view=actions
-// lists them one by one
-const VIEWS = ["actions"]
+// The page counts the actions per day and course, with view=actions lists
+// them one by one, and with view=report sums up the whole range
+const VIEWS = ["actions", "report"]
 
 // "2026-10-20 12:14:02", Finnish time
 const TIME_FORMAT = new Intl.DateTimeFormat("sv-SE", {
@@ -49,6 +49,16 @@ const DATE_FORMAT = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Helsink
 function finnishDate(now, days = 0) {
   return DATE_FORMAT.format(new Date(now.getTime() - days * 24 * 60 * 60 * 1000))
 }
+
+// The Monday of the week before the Finnish date today, as a Date at UTC
+// midnight
+function previousMonday(today) {
+  const date = new Date(`${today}T00:00:00Z`)
+  const sinceMonday = (date.getUTCDay() + 6) % 7
+  return new Date(date.getTime() - (sinceMonday + 7) * 24 * 60 * 60 * 1000)
+}
+
+const isoDate = (date) => date.toISOString().slice(0, 10)
 
 function isDate(value) {
   return (
@@ -168,6 +178,11 @@ function renderRangeLinks(filters, basePath, now) {
     const link = `<a href="${escapeHtml(logUrl(basePath, { ...filters, from, to: null }))}">${label}</a>`
     return selected ? `<strong>${link}</strong>` : link
   })
+  // The previous whole week, Monday to Sunday, e.g. for a weekly report
+  const monday = previousMonday(today)
+  const week = { from: isoDate(monday), to: isoDate(new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000)) }
+  const weekLink = `<a href="${escapeHtml(logUrl(basePath, { ...filters, ...week }))}">previous week</a>`
+  links.push(filters.from === week.from && filters.to === week.to ? `<strong>${weekLink}</strong>` : weekLink)
   const all = !filters.from && !filters.to
   const allLink = `<a href="${escapeHtml(logUrl(basePath, { ...filters, from: null, to: null }))}">all time</a>`
   return `<p class="log-ranges">${links.join(" · ")} · ${all ? `<strong>${allLink}</strong>` : allLink}</p>`
@@ -209,8 +224,26 @@ function renderViewLinks(filters, basePath) {
     const current = filters.view === view ? ' class="active" aria-current="page"' : ""
     return `<a href="${escapeHtml(logUrl(basePath, { ...filters, view }))}"${current}>${label}</a>`
   }
-  return `<nav class="log-views">${tab(null, "Daily summary")}${tab("actions", "All actions")}</nav>`
+  return `<nav class="log-views">${tab(null, "Daily summary")}${tab("actions", "All actions")}${tab("report", "Report")}</nav>`
 }
+
+// Adds the counts of a summary row to the group of key, e.g. a course or an
+// admin
+function addToGroup(groups, key, row, courseName) {
+  if (!groups.has(key)) {
+    groups.set(key, { name: key, actions: new Map(), actors: new Set(), courses: new Set(), count: 0, failed: 0 })
+  }
+  const group = groups.get(key)
+  const action = group.actions.get(row.action) ?? { count: 0, failed: 0 }
+  group.actions.set(row.action, { count: action.count + row.count, failed: action.failed + row.failed })
+  if (row.actor_uid) group.actors.add(row.actor_uid)
+  if (courseName !== undefined) group.courses.add(courseName)
+  group.count += row.count
+  group.failed += row.failed
+}
+
+// Groups without a name, e.g. the actions without a course, come last
+const byName = (a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name)
 
 // Summary rows of the same day and course, told apart by the course name
 // shown, are merged; actions without a course come last in their day
@@ -218,26 +251,41 @@ function summarize(rows, tabs) {
   const days = new Map()
   for (const row of rows) {
     if (!days.has(row.day)) days.set(row.day, new Map())
-    const courses = days.get(row.day)
-    const name = courseName(tabs, row)
-    if (!courses.has(name)) courses.set(name, { name, actions: new Map(), actors: new Set(), count: 0, failed: 0 })
-    const course = courses.get(name)
-    const action = course.actions.get(row.action) ?? { count: 0, failed: 0 }
-    course.actions.set(row.action, { count: action.count + row.count, failed: action.failed + row.failed })
-    if (row.actor_uid) course.actors.add(row.actor_uid)
-    course.count += row.count
-    course.failed += row.failed
+    addToGroup(days.get(row.day), courseName(tabs, row), row)
   }
-  const byName = (a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name)
   return [...days.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([day, courses]) => ({ day, courses: [...courses.values()].sort(byName) }))
 }
 
+function renderActionCounts(actions) {
+  const actionOrder = Object.keys(ACTION_LABELS)
+  return [...actions.entries()]
+    .sort(([a], [b]) => actionOrder.indexOf(a) - actionOrder.indexOf(b))
+    .map(([action, { count, failed }]) => {
+      const label = escapeHtml(ACTION_LABELS[action] ?? action)
+      const fails = failed ? ` <span class="grade-fail">(${failed} failed)</span>` : ""
+      return `${label}: ${count}${fails}`
+    })
+    .join("<br>")
+}
+
+function renderActor(actor) {
+  return actor === AUTO_GRADER_ACTOR
+    ? `<span class="badge log-cron">${escapeHtml(actor)}</span>`
+    : escapeHtml(actor)
+}
+
+const renderActors = (actors) => [...actors].sort().map(renderActor).join(", ")
+
+const renderFailed = (failed) =>
+  failed ? `<span class="grade-fail">${failed}</span>` : `<span class="grade-ok">0</span>`
+
+const noCourse = `<span class="none">no course</span>`
+
 function renderSummary(rows, tabs, basePath, filters) {
   const days = summarize(rows, tabs)
   if (days.length === 0) return `<p class="none">No actions.</p>`
-  const actionOrder = Object.keys(ACTION_LABELS)
   const body = days
     .map(({ day, courses }) =>
       courses
@@ -247,26 +295,7 @@ function renderSummary(rows, tabs, basePath, filters) {
             i === 0
               ? `<td class="log-time" rowspan="${courses.length}"><a href="${escapeHtml(logUrl(basePath, { ...filters, view: "actions", from: day, to: day }))}">${escapeHtml(day)}</a></td>`
               : ""
-          const actions = [...course.actions.entries()]
-            .sort(([a], [b]) => actionOrder.indexOf(a) - actionOrder.indexOf(b))
-            .map(([action, { count, failed }]) => {
-              const label = escapeHtml(ACTION_LABELS[action] ?? action)
-              const fails = failed ? ` <span class="grade-fail">(${failed} failed)</span>` : ""
-              return `${label}: ${count}${fails}`
-            })
-            .join("<br>")
-          const actors = [...course.actors]
-            .sort()
-            .map((actor) =>
-              actor === AUTO_GRADER_ACTOR
-                ? `<span class="badge log-cron">${escapeHtml(actor)}</span>`
-                : escapeHtml(actor),
-            )
-            .join(", ")
-          const failed = course.failed
-            ? `<span class="grade-fail">${course.failed}</span>`
-            : `<span class="grade-ok">0</span>`
-          return `<tr${i === 0 ? ' class="log-day"' : ""}>${dayCell}<td>${course.name || `<span class="none">no course</span>`}</td><td>${actions}</td><td>${actors}</td><td>${course.count}</td><td>${failed}</td></tr>`
+          return `<tr${i === 0 ? ' class="log-day"' : ""}>${dayCell}<td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
         })
         .join(""),
     )
@@ -274,13 +303,87 @@ function renderSummary(rows, tabs, basePath, filters) {
   return `<table class="log"><thead><tr><th>Day</th><th>Course</th><th>Actions</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${body}</tbody></table>`
 }
 
+function rangeText(filters) {
+  if (!filters.from && !filters.to) return "all time"
+  if (filters.from && filters.from === filters.to) return escapeHtml(filters.from)
+  return `${escapeHtml(filters.from ?? "start")} – ${escapeHtml(filters.to ?? "today")}`
+}
+
+// rows: the counts of the actions per day as for the summary, summed over
+// the whole range by action, course and admin. failures: the failed actions
+// newest first, at most failureLimit of them.
+function renderReport(rows, failures, { tabs, basePath, filters, failureLimit }) {
+  const heading = `<h2>Report: ${rangeText(filters)}</h2>`
+  if (rows.length === 0) return `${heading}<p class="none">No actions.</p>`
+
+  const actions = new Map()
+  const courses = new Map()
+  const admins = new Map()
+  const days = new Set()
+  for (const row of rows) {
+    const course = courseName(tabs, row)
+    addToGroup(actions, row.action, row)
+    addToGroup(courses, course, row)
+    addToGroup(admins, row.actor_uid ?? "", row, course)
+    days.add(row.day)
+  }
+  const total = rows.reduce((sum, row) => sum + row.count, 0)
+  const failed = rows.reduce((sum, row) => sum + row.failed, 0)
+  const runs = actions.get("auto_grade_run")?.count ?? 0
+  const people = [...admins.keys()].filter((uid) => uid && uid !== AUTO_GRADER_ACTOR).length
+  const stat = (value, label) => `<div class="log-stat"><strong>${value}</strong>${label}</div>`
+  const stats = `<div class="log-stats">${stat(total, "actions")}${stat(renderFailed(failed), "failed")}${stat(days.size, "active days")}${stat(people, "admins")}${stat(runs, "scheduled runs")}</div>`
+
+  const actionOrder = Object.keys(ACTION_LABELS)
+  const actionRows = [...actions.values()]
+    .sort((a, b) => actionOrder.indexOf(a.name) - actionOrder.indexOf(b.name))
+    .map((action) => {
+      const label = escapeHtml(ACTION_LABELS[action.name] ?? action.name)
+      const link = filterLink(basePath, { ...filters, view: "actions" }, "action", action.name, label)
+      return `<tr><td>${link}</td><td>${renderActors(action.actors)}</td><td>${action.count}</td><td>${renderFailed(action.failed)}</td></tr>`
+    })
+    .join("")
+  const byAction = `<h3>By action</h3><table class="log"><thead><tr><th>Action</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${actionRows}</tbody></table>`
+
+  const courseRows = [...courses.values()]
+    .sort(byName)
+    .map((course) => `<tr><td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`)
+    .join("")
+  const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Actions</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`
+
+  const adminRows = [...admins.values()]
+    .sort(byName)
+    .map((admin) => {
+      const name = admin.name
+        ? filterLink(basePath, { ...filters, view: "actions" }, "actor", admin.name, renderActor(admin.name))
+        : `<span class="none">unknown</span>`
+      return `<tr><td>${name}</td><td>${renderActionCounts(admin.actions)}</td><td>${[...admin.courses].sort((a, b) => (!a) - (!b) || a.localeCompare(b)).map((name) => name || noCourse).join(", ")}</td><td>${admin.count}</td><td>${renderFailed(admin.failed)}</td></tr>`
+    })
+    .join("")
+  const byAdmin = `<h3>By admin</h3><table class="log"><thead><tr><th>Admin</th><th>Actions</th><th>Courses</th><th>Total</th><th>Failed</th></tr></thead><tbody>${adminRows}</tbody></table>`
+
+  const allFailed = `<a href="${escapeHtml(logUrl(basePath, { ...filters, view: "actions", failed: true }))}">all failed actions</a>`
+  const failureList =
+    failures.length === 0
+      ? ""
+      : `<h3>Failed actions</h3>${
+          failures.length === failureLimit ? `<p>The newest ${failureLimit}; see ${allFailed}.</p>` : ""
+        }<table class="log"><thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Tab</th><th>Course</th><th>Student</th><th>Answer</th><th>Details</th><th>Result</th></tr></thead><tbody>${failures
+          .map((row) => renderLogRow(row, tabs, basePath, { ...filters, view: "actions" }))
+          .join("")}</tbody></table>`
+
+  return `${heading}${stats}${byAction}${byCourse}${byAdmin}${failureList}`
+}
+
 // rows: the counts of the actions per day, see actionLog.summary. With
 // filters.view "actions", rows are the actions newest first instead; when
-// there are limit of them, the page links to the older ones.
+// there are limit of them, the page links to the older ones. With
+// filters.view "report", failures are the failed actions of the range, at
+// most limit of them.
 // enabled: false when no database is configured
 function renderLogPage(
   rows,
-  { tabs, filters, limit, enabled = true, basePath = "", now = new Date() },
+  { tabs, filters, limit, failures = [], enabled = true, basePath = "", now = new Date() },
 ) {
   const back = `<p><a href="${escapeHtml(basePath)}/">&larr; Overview</a></p>`
   if (!enabled) {
@@ -290,7 +393,9 @@ function renderLogPage(
       body: `${back}<h1>Action log</h1><p class="none">The action log is off: DATABASE_URL is not set.</p>`,
     })
   }
-  const table = filters.view !== "actions"
+  const table = filters.view === "report"
+    ? renderReport(rows, failures, { tabs, basePath, filters, failureLimit: limit })
+    : filters.view !== "actions"
     ? renderSummary(rows, tabs, basePath, filters)
     : rows.length === 0
       ? `<p class="none">No actions.</p>`

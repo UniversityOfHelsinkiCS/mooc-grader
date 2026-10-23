@@ -43,6 +43,7 @@ describe("parseLogQuery", () => {
       filters: { actor: null, action: null, tabId: null, userId: null, failed: false, from: null, to: null, view: null },
     })
     assert.equal(parseLogQuery({ view: "actions" }).filters.view, "actions")
+    assert.equal(parseLogQuery({ view: "report" }).filters.view, "report")
   })
 })
 
@@ -142,6 +143,53 @@ describe("renderLogPage", () => {
     assert.ok(html.includes('<a href="/log">clear filters</a>'))
     assert.ok(html.includes('<a href="/log?tab=fs" class="active" aria-current="page">Daily summary</a><a href="/log?tab=fs&amp;view=actions">All actions</a>'))
     assert.ok(!html.includes("Older"))
+  })
+
+  test("offers the previous week from Monday to Sunday", () => {
+    // Thursday 2026-10-22 in Finland
+    const now = new Date("2026-10-22T10:00:00Z")
+    const html = renderLogPage([], { tabs, filters: { ...filters, view: "report", from: "2026-10-12", to: "2026-10-18" }, limit: 200, now })
+    assert.ok(html.includes('<strong><a href="/log?from=2026-10-12&amp;to=2026-10-18&amp;view=report">previous week</a></strong>'))
+  })
+
+  test("the report sums up the range by action, course and admin", () => {
+    const count = (fields) => ({ day: "2026-10-20", tab_id: null, course_id: null, exercise_id: null, actor_uid: "mluukkai", action: "full_points", count: 1, failed: 0, ...fields })
+    const html = renderLogPage(
+      [
+        count({ day: "2026-10-19", exercise_id: "ex1", action: "reset", count: 2, failed: 1 }),
+        count({ exercise_id: "ex1", count: 3 }),
+        count({ action: "auto_grade_run", actor_uid: "node-cron", count: 4 }),
+        count({ actor_uid: "ousavola", course_id: "c1", count: 5 }),
+      ],
+      {
+        tabs,
+        filters: { ...filters, view: "report", from: "2026-10-14", to: "2026-10-20" },
+        failures: [row({ action: "reset", exercise_id: "ex1", ok: false, error: "500" })],
+        limit: 200,
+      },
+    )
+    assert.ok(html.includes("<h2>Report: 2026-10-14 – 2026-10-20</h2>"))
+    const stats = [...html.matchAll(/log-stat"><strong>(.*?)<\/strong>([\w ]+)</g)].map((m) => [m[1], m[2]])
+    assert.deepEqual(stats, [
+      ["14", "actions"],
+      ['<span class="grade-fail">1</span>', "failed"],
+      ["2", "active days"],
+      ["2", "admins"],
+      ["4", "scheduled runs"],
+    ])
+    assert.ok(html.includes('>Full points</a></td><td>mluukkai, ousavola</td><td>8</td>'))
+    assert.ok(html.includes('<td>graphql</td><td>Full points: 8<br>Reset: 2 <span class="grade-fail">(1 failed)</span></td><td>mluukkai, ousavola</td><td>10</td>'))
+    assert.ok(html.includes('>mluukkai</a></td><td>Full points: 3<br>Reset: 2 <span class="grade-fail">(1 failed)</span></td><td>graphql</td><td>5</td>'))
+    assert.ok(html.includes('<span class="none">no course</span></td><td>4</td>'))
+    assert.ok(html.includes("<h3>Failed actions</h3>"))
+    assert.ok(html.includes("failed: 500"))
+    assert.ok(html.includes('aria-current="page">Report</a>'))
+  })
+
+  test("the report says when there is nothing in the range", () => {
+    const html = renderLogPage([], { tabs, filters: { ...filters, view: "report" }, limit: 200 })
+    assert.ok(html.includes("<h2>Report: all time</h2>"))
+    assert.ok(html.includes("No actions."))
   })
 
   test("says when the log is off", () => {
