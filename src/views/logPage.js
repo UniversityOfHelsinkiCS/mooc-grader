@@ -1,5 +1,5 @@
 const { escapeHtml, externalLink, formatTime, layout } = require("./html")
-const { allCourses, findTab, findCourseByExercise } = require("../config/tabs")
+const { allCourses, findTab, findCourseByExercise, findTabByExercise } = require("../config/tabs")
 const { AUTO_GRADER_ACTOR } = require("../services/autoGrader")
 
 const ACTION_LABELS = {
@@ -108,6 +108,20 @@ function courseName(tabs, row) {
   const completionTab = tabs.find((tab) => tab.completion?.courseInstanceId === row.course_id)
   if (completionTab) return `${escapeHtml(completionTab.name)} completions`
   return row.course_id ? shortId(row.course_id) : ""
+}
+
+// Whether the row belongs to a tab with completions, e.g. Kubernetes, whose
+// courses are graded by hand and listed apart from the others
+function isCompletionCourse(tabs, row) {
+  const tab =
+    findTab(tabs, row.tab_id) ??
+    (row.exercise_id && findTabByExercise(tabs, row.exercise_id)) ??
+    tabs.find(
+      (item) =>
+        item.completion?.courseInstanceId === row.course_id ||
+        item.courses.some((course) => course.courseId === row.course_id),
+    )
+  return !!tab?.completion
 }
 
 // Postgres jsonb does not keep the order of the keys, so the known ones are
@@ -234,17 +248,36 @@ function addToGroup(groups, key, row, courseName) {
 // Groups without a name, e.g. the actions without a course, come last
 const byName = (a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name)
 
+// The courses of the tabs with completions come after the actions without
+// a course
+const courseOrder = (a, b) => !!a.completion - !!b.completion || byName(a, b)
+
+// Groups the row by its course, marking the courses of the tabs with
+// completions
+function addToCourse(groups, tabs, row) {
+  const name = courseName(tabs, row)
+  addToGroup(groups, name, row)
+  if (isCompletionCourse(tabs, row)) groups.get(name).completion = true
+  return name
+}
+
+// The class of a course row: the first course of the tabs with completions
+// is set apart by a line, unless it opens the table or the day
+const completionStart = (courses, i) =>
+  i > 0 && courses[i].completion && !courses[i - 1].completion
+
 // Summary rows of the same day and course, told apart by the course name
-// shown, are merged; actions without a course come last in their day
+// shown, are merged; actions without a course come last in their day, but
+// before the courses of the tabs with completions
 function summarize(rows, tabs) {
   const days = new Map()
   for (const row of rows) {
     if (!days.has(row.day)) days.set(row.day, new Map())
-    addToGroup(days.get(row.day), courseName(tabs, row), row)
+    addToCourse(days.get(row.day), tabs, row)
   }
   return [...days.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([day, courses]) => ({ day, courses: [...courses.values()].sort(byName) }))
+    .map(([day, courses]) => ({ day, courses: [...courses.values()].sort(courseOrder) }))
 }
 
 function renderActionCounts(actions) {
@@ -284,7 +317,8 @@ function renderSummary(rows, tabs, basePath, filters) {
             i === 0
               ? `<td class="log-time" rowspan="${courses.length}"><a href="${escapeHtml(logUrl(basePath, { ...filters, view: "actions", from: day, to: day }))}">${escapeHtml(day)}</a></td>`
               : ""
-          return `<tr${i === 0 ? ' class="log-day"' : ""}>${dayCell}<td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
+          const rowClass = i === 0 ? "log-day" : completionStart(courses, i) ? "log-completion" : null
+          return `<tr${rowClass ? ` class="${rowClass}"` : ""}>${dayCell}<td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
         })
         .join(""),
     )
@@ -315,9 +349,8 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
   const admins = new Map()
   const days = new Set()
   for (const row of rows) {
-    const course = courseName(tabs, row)
     addToGroup(actions, row.action, row)
-    addToGroup(courses, course, row)
+    const course = addToCourse(courses, tabs, row)
     addToGroup(row.actor_uid === AUTO_GRADER_ACTOR ? automatic : manual, course, row)
     addToGroup(admins, row.actor_uid ?? "", row, course)
     days.add(row.day)
@@ -332,10 +365,10 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
   const split = (group) =>
     group ? renderActionCounts(group.actions) : `<span class="none">-</span>`
   const courseRows = [...courses.values()]
-    .sort(byName)
-    .map((course) => {
+    .sort(courseOrder)
+    .map((course, i, sorted) => {
       const done = manual.get(course.name)
-      return `<tr><td>${course.name || noCourse}</td><td>${split(automatic.get(course.name))}</td><td>${split(done)}</td><td>${done ? renderActors(done.actors) : ""}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
+      return `<tr${completionStart(sorted, i) ? ' class="log-completion"' : ""}><td>${course.name || noCourse}</td><td>${split(automatic.get(course.name))}</td><td>${split(done)}</td><td>${done ? renderActors(done.actors) : ""}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
     })
     .join("")
   const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Automatic</th><th>Manual</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`
