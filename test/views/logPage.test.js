@@ -190,7 +190,7 @@ describe("renderLogPage", () => {
     assert.ok(html.includes('aria-current="page">Report</a>'))
   })
 
-  test("the courses of the tabs with completions come last, set apart by a line", () => {
+  test("the docker courses come first and the courses of the tabs with completions last, set apart by lines", () => {
     const withKube = [
       {
         id: "k8s",
@@ -199,6 +199,14 @@ describe("renderLogPage", () => {
         courses: [{ exerciseId: "k8s-ex", name: "kubernetes", courseId: "c2" }],
       },
       ...tabs,
+      {
+        id: "docker",
+        name: "Docker",
+        courses: [
+          { exerciseId: "d1", name: "docker basics", courseId: "c3" },
+          { exerciseId: "d2", name: "optimization", courseId: "c4" },
+        ],
+      },
     ]
     const count = (fields) => ({ day: "2026-10-20", tab_id: null, course_id: null, exercise_id: null, actor_uid: "mluukkai", action: "full_points", count: 1, failed: 0, ...fields })
     const rows = [
@@ -206,13 +214,17 @@ describe("renderLogPage", () => {
       count({ action: "completion", course_id: "inst1" }),
       count({ action: "auto_grade_run", actor_uid: "node-cron" }),
       count({ exercise_id: "ex1" }),
+      count({ exercise_id: "d2" }),
+      count({ exercise_id: "d1" }),
     ]
     for (const view of [null, "report"]) {
       const html = renderLogPage(rows, { tabs: withKube, filters: { ...filters, view }, limit: 200 })
       const table = html.slice(html.indexOf('<table class="log">'))
       const courses = [...table.slice(0, table.indexOf("</table>")).matchAll(/<tr( class="[\w-]+")?>(?:<td class="log-time"[^>]*>.*?<\/td>)?<td>(.*?)<\/td>/g)].map((m) => [m[2], m[1] ?? ""])
       assert.deepEqual(courses, [
-        ["graphql", view ? "" : ' class="log-day"'],
+        ["docker basics", view ? "" : ' class="log-day"'],
+        ["optimization", ""],
+        ["graphql", ' class="log-group"'],
         ['<span class="none">no course</span>', ""],
         ["kubernetes", ' class="log-completion"'],
         ["Kubernetes completions", ""],

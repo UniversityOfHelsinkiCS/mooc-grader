@@ -110,10 +110,10 @@ function courseName(tabs, row) {
   return row.course_id ? shortId(row.course_id) : ""
 }
 
-// Whether the row belongs to a tab with completions, e.g. Kubernetes, whose
-// courses are graded by hand and listed apart from the others
-function isCompletionCourse(tabs, row) {
-  const tab =
+// The tab of the row, e.g. to list the courses of some tabs apart from the
+// others
+function courseTab(tabs, row) {
+  return (
     findTab(tabs, row.tab_id) ??
     (row.exercise_id && findTabByExercise(tabs, row.exercise_id)) ??
     tabs.find(
@@ -121,7 +121,7 @@ function isCompletionCourse(tabs, row) {
         item.completion?.courseInstanceId === row.course_id ||
         item.courses.some((course) => course.courseId === row.course_id),
     )
-  return !!tab?.completion
+  )
 }
 
 // Postgres jsonb does not keep the order of the keys, so the known ones are
@@ -248,23 +248,34 @@ function addToGroup(groups, key, row, courseName) {
 // Groups without a name, e.g. the actions without a course, come last
 const byName = (a, b) => (!a.name) - (!b.name) || a.name.localeCompare(b.name)
 
-// The courses of the tabs with completions come after the actions without
-// a course
-const courseOrder = (a, b) => !!a.completion - !!b.completion || byName(a, b)
+// The courses of this tab are listed first
+const FIRST_TAB = "docker"
 
-// Groups the row by its course, marking the courses of the tabs with
-// completions
+// The courses of the first tab come first and the courses of the tabs with
+// completions after the actions without a course
+const courseOrder = (a, b) =>
+  !!b.first - !!a.first || !!a.completion - !!b.completion || byName(a, b)
+
+// Groups the row by its course, marking the courses of the first tab and of
+// the tabs with completions
 function addToCourse(groups, tabs, row) {
   const name = courseName(tabs, row)
   addToGroup(groups, name, row)
-  if (isCompletionCourse(tabs, row)) groups.get(name).completion = true
+  const tab = courseTab(tabs, row)
+  if (tab?.id === FIRST_TAB) groups.get(name).first = true
+  if (tab?.completion) groups.get(name).completion = true
   return name
 }
 
-// The class of a course row: the first course of the tabs with completions
-// is set apart by a line, unless it opens the table or the day
-const completionStart = (courses, i) =>
-  i > 0 && courses[i].completion && !courses[i - 1].completion
+// The class of a course row: the first course after the courses of the
+// first tab, and the first course of the tabs with completions, are set
+// apart by a line, unless the row opens the table or the day
+function courseRowClass(courses, i) {
+  if (i === 0) return null
+  if (courses[i].completion && !courses[i - 1].completion) return "log-completion"
+  if (courses[i - 1].first && !courses[i].first) return "log-group"
+  return null
+}
 
 // Summary rows of the same day and course, told apart by the course name
 // shown, are merged; actions without a course come last in their day, but
@@ -317,7 +328,7 @@ function renderSummary(rows, tabs, basePath, filters) {
             i === 0
               ? `<td class="log-time" rowspan="${courses.length}"><a href="${escapeHtml(logUrl(basePath, { ...filters, view: "actions", from: day, to: day }))}">${escapeHtml(day)}</a></td>`
               : ""
-          const rowClass = i === 0 ? "log-day" : completionStart(courses, i) ? "log-completion" : null
+          const rowClass = i === 0 ? "log-day" : courseRowClass(courses, i)
           return `<tr${rowClass ? ` class="${rowClass}"` : ""}>${dayCell}<td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
         })
         .join(""),
@@ -368,7 +379,8 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
     .sort(courseOrder)
     .map((course, i, sorted) => {
       const done = manual.get(course.name)
-      return `<tr${completionStart(sorted, i) ? ' class="log-completion"' : ""}><td>${course.name || noCourse}</td><td>${split(automatic.get(course.name))}</td><td>${split(done)}</td><td>${done ? renderActors(done.actors) : ""}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
+      const rowClass = courseRowClass(sorted, i)
+      return `<tr${rowClass ? ` class="${rowClass}"` : ""}><td>${course.name || noCourse}</td><td>${split(automatic.get(course.name))}</td><td>${split(done)}</td><td>${done ? renderActors(done.actors) : ""}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
     })
     .join("")
   const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Automatic</th><th>Manual</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`

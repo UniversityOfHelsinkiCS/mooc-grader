@@ -87,6 +87,7 @@ table.log td { font-size: 0.9rem; vertical-align: top; }
 .log-views a.active { color: #1f2328; background: #fff; border-color: #d0d7de; }
 table.log tr.log-day td { border-top: 3px solid #d0d7de; }
 table.log tr.log-completion td { border-top: 4px solid #57606a; }
+table.log tr.log-group td { border-top: 2px solid #afb8c1; }
 .log-stats { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 1rem; }
 .log-stat { border: 1px solid #d0d7de; border-radius: 6px; padding: 0.5rem 1rem; color: #656d76; }
 .log-stat strong { display: block; font-size: 1.4rem; color: #1f2328; }
