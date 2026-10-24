@@ -152,7 +152,7 @@ describe("renderLogPage", () => {
     assert.ok(html.includes('<strong><a href="/log?from=2026-10-12&amp;to=2026-10-18&amp;view=report">previous week</a></strong>'))
   })
 
-  test("the report sums up the range by action, course and admin", () => {
+  test("the report sums up the range by course, action and admin", () => {
     const count = (fields) => ({ day: "2026-10-20", tab_id: null, course_id: null, exercise_id: null, actor_uid: "mluukkai", action: "full_points", count: 1, failed: 0, ...fields })
     const html = renderLogPage(
       [
@@ -178,7 +178,11 @@ describe("renderLogPage", () => {
       ["4", "scheduled runs"],
     ])
     assert.ok(html.includes('>Full points</a></td><td>mluukkai, ousavola</td><td>8</td>'))
-    assert.ok(html.includes('<td>graphql</td><td>Full points: 8<br>Reset: 2 <span class="grade-fail">(1 failed)</span></td><td>mluukkai, ousavola</td><td>10</td>'))
+    // The courses come first, the scheduled grading apart from the manual actions
+    assert.ok(html.indexOf("<h3>By course</h3>") < html.indexOf("<h3>By action</h3>"))
+    assert.ok(html.includes('<th>Course</th><th>Automatic</th><th>Manual</th><th>Admins</th>'))
+    assert.ok(html.includes('<td>graphql</td><td><span class="none">-</span></td><td>Full points: 8<br>Reset: 2 <span class="grade-fail">(1 failed)</span></td><td>mluukkai, ousavola</td><td>10</td>'))
+    assert.ok(html.includes('<span class="none">no course</span></td><td>Scheduled run: 4</td><td><span class="none">-</span></td><td></td><td>4</td>'))
     assert.ok(html.includes('>mluukkai</a></td><td>Full points: 3<br>Reset: 2 <span class="grade-fail">(1 failed)</span></td><td>graphql</td><td>5</td>'))
     assert.ok(html.includes('<span class="none">no course</span></td><td>4</td>'))
     assert.ok(html.includes("<h3>Failed actions</h3>"))

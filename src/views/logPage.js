@@ -308,11 +308,17 @@ function rangeText(filters) {
   if (filters.from && filters.from === filters.to) return escapeHtml(filters.from)
   return `${escapeHtml(filters.from ?? "start")} – ${escapeHtml(filters.to ?? "today")}`
 }
+  // The actions of the scheduled grading and the ones admins did by hand,
+  // per course
+  const automatic = new Map()
+  const manual = new Map()
 
 // rows: the counts of the actions per day as for the summary, summed over
-// the whole range by action, course and admin. failures: the failed actions
+// the whole range by course, split into the scheduled grading and the
+// manual actions, by action and by admin. failures: the failed actions
 // newest first, at most failureLimit of them.
 function renderReport(rows, failures, { tabs, basePath, filters, failureLimit }) {
+    addToGroup(row.actor_uid === AUTO_GRADER_ACTOR ? automatic : manual, course, row)
   const heading = `<h2>Report: ${rangeText(filters)}</h2>`
   if (rows.length === 0) return `${heading}<p class="none">No actions.</p>`
 
@@ -323,6 +329,17 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
   for (const row of rows) {
     const course = courseName(tabs, row)
     addToGroup(actions, row.action, row)
+  const split = (group) =>
+    group ? renderActionCounts(group.actions) : `<span class="none">-</span>`
+  const courseRows = [...courses.values()]
+    .sort(byName)
+    .map((course) => {
+      const done = manual.get(course.name)
+      return `<tr><td>${course.name || noCourse}</td><td>${split(automatic.get(course.name))}</td><td>${split(done)}</td><td>${done ? renderActors(done.actors) : ""}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`
+    })
+    .join("")
+  const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Automatic</th><th>Manual</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`
+
     addToGroup(courses, course, row)
     addToGroup(admins, row.actor_uid ?? "", row, course)
     days.add(row.day)
@@ -345,12 +362,6 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
     .join("")
   const byAction = `<h3>By action</h3><table class="log"><thead><tr><th>Action</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${actionRows}</tbody></table>`
 
-  const courseRows = [...courses.values()]
-    .sort(byName)
-    .map((course) => `<tr><td>${course.name || noCourse}</td><td>${renderActionCounts(course.actions)}</td><td>${renderActors(course.actors)}</td><td>${course.count}</td><td>${renderFailed(course.failed)}</td></tr>`)
-    .join("")
-  const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Actions</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`
-
   const adminRows = [...admins.values()]
     .sort(byName)
     .map((admin) => {
@@ -372,7 +383,7 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
           .map((row) => renderLogRow(row, tabs, basePath, { ...filters, view: "actions" }))
           .join("")}</tbody></table>`
 
-  return `${heading}${stats}${byAction}${byCourse}${byAdmin}${failureList}`
+  return `${heading}${stats}${byCourse}${byAction}${byAdmin}${failureList}`
 }
 
 // rows: the counts of the actions per day, see actionLog.summary. With
