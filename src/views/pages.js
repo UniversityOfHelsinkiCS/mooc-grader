@@ -7,8 +7,9 @@ const {
   isCorrect,
   isIncorrect,
 } = require("../domain/answerChecks")
-const { escapeHtml, externalLink, layout, loadingRow } = require("./html")
+const { escapeHtml, externalLink, formatTime, layout, loadingRow } = require("./html")
 const { renderInvitesSummary } = require("./invitesPage")
+const { AUTO_GRADER_ACTOR } = require("../services/autoGrader")
 const {
   renderAnswerCell,
   renderGhaCell,
@@ -180,7 +181,20 @@ function renderSuotarTable(basePath) {
 // The page is sent at once with placeholder rows that the page script
 // fills in one by one. invitationAccounts: invitationService.listAccounts(),
 // or null to leave the section out
-function renderOverviewPage(tabs, { basePath = "", invitationAccounts = null } = {}) {
+// When the scheduled grading last ran, linking to its rows of the log, and
+// when it runs next. schedule: { lastRun, nextRun }, lastRun being the log
+// row of the run (or null), nextRun a Date; null when the grading is off.
+function renderSchedule(schedule, basePath) {
+  if (!schedule) return `<p class="schedule">Scheduled grading is off</p>`
+  const { lastRun, nextRun } = schedule
+  const last = lastRun
+    ? `<a href="${escapeHtml(basePath)}/log?actor=${AUTO_GRADER_ACTOR}&amp;action=auto_grade_run&amp;view=actions">${escapeHtml(formatTime(lastRun.created_at))}</a>${lastRun.ok ? "" : ` <span class="grade-fail">(failed)</span>`}`
+    : `<span class="none">-</span>`
+  const next = nextRun ? escapeHtml(formatTime(nextRun)) : `<span class="none">-</span>`
+  return `<p class="schedule">Scheduled grading: last run ${last}, next run ${next}</p>`
+}
+
+function renderOverviewPage(tabs, { basePath = "", invitationAccounts = null, schedule = null } = {}) {
   // Tabs with completions are graded by hand, user by user, so they get a
   // table of their own and are not graded from the overview
   const gradedTabs = tabs.filter((tab) => !tab.completion)
@@ -202,6 +216,7 @@ ${renderTabTable(manualTabs, basePath)}
     title: "Answers requiring attention",
     basePath,
     body: `<nav class="top-nav"><a href="${escapeHtml(basePath)}/log">Action log</a></nav>
+${renderSchedule(schedule, basePath)}
 ${invites}<h1>Answers requiring attention${gradeAllTabs}</h1>
 ${renderTabTable(gradedTabs, basePath, "tab-summary")}
 ${manual}${renderSuotarTable(basePath)}

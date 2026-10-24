@@ -71,6 +71,7 @@ describe("action log", () => {
             return []
           },
         },
+        nextAutoGrade: () => new Date("2026-10-24T13:00:00Z"),
         auth: { allowedUids: ["mluukkai"], enforce: true },
       }),
     )
@@ -179,6 +180,13 @@ describe("action log", () => {
     const response = await post("/invitations/accept-all", { account: 0 })
     assert.equal(response.status, 200)
     assert.deepEqual(rows, [])
+  })
+
+  test("the overview tells when the scheduled grading ran last and runs next", async () => {
+    const response = await fetch(`${server.url}/`, { headers: { uid: "mluukkai" } })
+    assert.equal(response.status, 200)
+    assert.match(await response.text(), /Scheduled grading: last run <span class="none">-<\/span>, next run 2026-10-24 16:00:00/)
+    assert.deepEqual(recentQueries.at(-1), { limit: 1, filters: { actor: "node-cron", action: "auto_grade_run" } })
   })
 
   test("GET /log shows the rows matching the filters of the query", async () => {

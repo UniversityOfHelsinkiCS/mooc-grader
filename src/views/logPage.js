@@ -1,4 +1,4 @@
-const { escapeHtml, externalLink, layout } = require("./html")
+const { escapeHtml, externalLink, formatTime, layout } = require("./html")
 const { allCourses, findTab, findCourseByExercise } = require("../config/tabs")
 const { AUTO_GRADER_ACTOR } = require("../services/autoGrader")
 
@@ -31,17 +31,6 @@ const FILTER_PARAMS = {
 // The page counts the actions per day and course, with view=actions lists
 // them one by one, and with view=report sums up the whole range
 const VIEWS = ["actions", "report"]
-
-// "2026-10-20 12:14:02", Finnish time
-const TIME_FORMAT = new Intl.DateTimeFormat("sv-SE", {
-  timeZone: "Europe/Helsinki",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-})
 
 const DATE_FORMAT = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Helsinki" })
 
@@ -161,7 +150,7 @@ function renderLogRow(row, tabs, basePath, filters) {
   // A scheduled run is logged after its actions, so newest first its row
   // starts the group of them; the border separates the runs
   const rowClass = row.action === "auto_grade_run" ? ' class="log-run"' : ""
-  return `<tr${rowClass}><td class="log-time">${escapeHtml(TIME_FORMAT.format(new Date(row.created_at)))}</td><td>${actor}</td><td>${action}</td><td>${tab}</td><td>${courseName(tabs, row)}</td><td>${student}</td><td>${answer}</td><td>${renderDetails(row.details)}</td><td>${result}</td></tr>`
+  return `<tr${rowClass}><td class="log-time">${escapeHtml(formatTime(row.created_at))}</td><td>${actor}</td><td>${action}</td><td>${tab}</td><td>${courseName(tabs, row)}</td><td>${student}</td><td>${answer}</td><td>${renderDetails(row.details)}</td><td>${result}</td></tr>`
 }
 
 // Quick ranges ending today; the selected one is shown in bold
@@ -308,27 +297,38 @@ function rangeText(filters) {
   if (filters.from && filters.from === filters.to) return escapeHtml(filters.from)
   return `${escapeHtml(filters.from ?? "start")} – ${escapeHtml(filters.to ?? "today")}`
 }
-  // The actions of the scheduled grading and the ones admins did by hand,
-  // per course
-  const automatic = new Map()
-  const manual = new Map()
 
 // rows: the counts of the actions per day as for the summary, summed over
 // the whole range by course, split into the scheduled grading and the
 // manual actions, by action and by admin. failures: the failed actions
 // newest first, at most failureLimit of them.
 function renderReport(rows, failures, { tabs, basePath, filters, failureLimit }) {
-    addToGroup(row.actor_uid === AUTO_GRADER_ACTOR ? automatic : manual, course, row)
   const heading = `<h2>Report: ${rangeText(filters)}</h2>`
   if (rows.length === 0) return `${heading}<p class="none">No actions.</p>`
 
   const actions = new Map()
   const courses = new Map()
+  // The actions of the scheduled grading and the ones admins did by hand,
+  // per course
+  const automatic = new Map()
+  const manual = new Map()
   const admins = new Map()
   const days = new Set()
   for (const row of rows) {
     const course = courseName(tabs, row)
     addToGroup(actions, row.action, row)
+    addToGroup(courses, course, row)
+    addToGroup(row.actor_uid === AUTO_GRADER_ACTOR ? automatic : manual, course, row)
+    addToGroup(admins, row.actor_uid ?? "", row, course)
+    days.add(row.day)
+  }
+  const total = rows.reduce((sum, row) => sum + row.count, 0)
+  const failed = rows.reduce((sum, row) => sum + row.failed, 0)
+  const runs = actions.get("auto_grade_run")?.count ?? 0
+  const people = [...admins.keys()].filter((uid) => uid && uid !== AUTO_GRADER_ACTOR).length
+  const stat = (value, label) => `<div class="log-stat"><strong>${value}</strong>${label}</div>`
+  const stats = `<div class="log-stats">${stat(total, "actions")}${stat(renderFailed(failed), "failed")}${stat(days.size, "active days")}${stat(people, "admins")}${stat(runs, "scheduled runs")}</div>`
+
   const split = (group) =>
     group ? renderActionCounts(group.actions) : `<span class="none">-</span>`
   const courseRows = [...courses.values()]
@@ -339,17 +339,6 @@ function renderReport(rows, failures, { tabs, basePath, filters, failureLimit })
     })
     .join("")
   const byCourse = `<h3>By course</h3><table class="log"><thead><tr><th>Course</th><th>Automatic</th><th>Manual</th><th>Admins</th><th>Total</th><th>Failed</th></tr></thead><tbody>${courseRows}</tbody></table>`
-
-    addToGroup(courses, course, row)
-    addToGroup(admins, row.actor_uid ?? "", row, course)
-    days.add(row.day)
-  }
-  const total = rows.reduce((sum, row) => sum + row.count, 0)
-  const failed = rows.reduce((sum, row) => sum + row.failed, 0)
-  const runs = actions.get("auto_grade_run")?.count ?? 0
-  const people = [...admins.keys()].filter((uid) => uid && uid !== AUTO_GRADER_ACTOR).length
-  const stat = (value, label) => `<div class="log-stat"><strong>${value}</strong>${label}</div>`
-  const stats = `<div class="log-stats">${stat(total, "actions")}${stat(renderFailed(failed), "failed")}${stat(days.size, "active days")}${stat(people, "admins")}${stat(runs, "scheduled runs")}</div>`
 
   const actionOrder = Object.keys(ACTION_LABELS)
   const actionRows = [...actions.values()]

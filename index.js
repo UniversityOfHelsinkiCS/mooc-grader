@@ -92,6 +92,7 @@ const app = createApp({
   pullRequestService,
   stats: createStatsClient({ http }),
   actionLog,
+  nextAutoGrade: autoGradeTask ? () => autoGradeTask.getNextRun() : null,
   auth: config.auth,
   basePath: config.basePath,
 })

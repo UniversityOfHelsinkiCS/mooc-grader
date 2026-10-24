@@ -13,6 +13,19 @@ function externalLink(url, content = escapeHtml(url)) {
   return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${content}</a>`
 }
 
+// "2026-10-20 12:14:02", Finnish time
+const TIME_FORMAT = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Helsinki",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+})
+
+const formatTime = (time) => TIME_FORMAT.format(new Date(time))
+
 const SPINNER = `<span class="spinner" role="status" aria-label="Loading"></span>`
 
 // Placeholder row of the overview page: its script replaces the row with
@@ -44,4 +57,4 @@ ${body}<script>${SESSION_GUARD_SCRIPT}</script>
 </body></html>`
 }
 
-module.exports = { escapeHtml, externalLink, layout, loadingRow }
+module.exports = { escapeHtml, externalLink, formatTime, layout, loadingRow }

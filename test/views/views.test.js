@@ -478,6 +478,31 @@ describe("renderOverviewPage", () => {
     assert.ok(html.includes('<script src="/g/static/overview.js"></script>'))
   })
 
+  test("tells when the scheduled grading ran last and runs next", () => {
+    const html = renderOverviewPage([], {
+      basePath: "/g",
+      schedule: {
+        lastRun: { created_at: "2026-10-24T09:00:03Z", ok: true },
+        nextRun: new Date("2026-10-24T13:00:00Z"),
+      },
+    })
+    assert.ok(
+      html.includes(
+        '<p class="schedule">Scheduled grading: last run <a href="/g/log?actor=node-cron&amp;action=auto_grade_run&amp;view=actions">2026-10-24 12:00:03</a>, next run 2026-10-24 16:00:00</p>',
+      ),
+    )
+  })
+
+  test("marks a failed scheduled run and tells when there is none or the grading is off", () => {
+    const failed = renderOverviewPage([], {
+      schedule: { lastRun: { created_at: "2026-10-24T09:00:03Z", ok: false }, nextRun: null },
+    })
+    assert.ok(failed.includes('2026-10-24 12:00:03</a> <span class="grade-fail">(failed)</span>, next run <span class="none">-</span>'))
+    const none = renderOverviewPage([], { schedule: { lastRun: null, nextRun: new Date("2026-10-24T13:00:00Z") } })
+    assert.ok(none.includes('last run <span class="none">-</span>, next run 2026-10-24 16:00:00'))
+    assert.ok(renderOverviewPage([]).includes('<p class="schedule">Scheduled grading is off</p>'))
+  })
+
   test("offers grading every tab without completions", () => {
     const html = renderOverviewPage([
       { id: "k8s", name: "Kubernetes", completion: { courseModuleId: "m", courseInstanceId: "i" } },

@@ -90,6 +90,7 @@ table.log tr.log-day td { border-top: 3px solid #d0d7de; }
 .log-stat { border: 1px solid #d0d7de; border-radius: 6px; padding: 0.5rem 1rem; color: #656d76; }
 .log-stat strong { display: block; font-size: 1.4rem; color: #1f2328; }
 .top-nav { display: flex; justify-content: flex-end; gap: 1rem; font-weight: 600; }
+.schedule { color: #57606a; margin: 0.5rem 0 0; }
 .log-cron { background: #8250df; }
 table.log tr.log-run td { border-top: 3px solid #8250df; }
 .log-cron { white-space: nowrap; }

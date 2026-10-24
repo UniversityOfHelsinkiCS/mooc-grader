@@ -15,6 +15,7 @@ const {
 const { renderLogPage, parseLogQuery } = require("../views/logPage")
 const { findTab, findCheatersCourse } = require("../config/tabs")
 const { noActionLog } = require("../infra/actionLog")
+const { AUTO_GRADER_ACTOR } = require("../services/autoGrader")
 
 const LOG_PAGE_SIZE = 200
 
@@ -36,15 +37,33 @@ function createPageRouter({
   invitationService,
   stats,
   actionLog = noActionLog,
+  // The time of the next scheduled grading; null when it is off
+  nextAutoGrade = null,
   basePath,
 }) {
   const router = express.Router()
 
-  router.get("/", (req, res) => {
+  // The last scheduled run is read from the log, so that it is known also
+  // after a restart; a log that cannot be read just leaves it out
+  router.get("/", async (req, res) => {
+    const schedule = nextAutoGrade
+      ? {
+          lastRun: (
+            await actionLog
+              .recent({ limit: 1, filters: { actor: AUTO_GRADER_ACTOR, action: "auto_grade_run" } })
+              .catch((err) => {
+                console.error(err.message)
+                return []
+              })
+          )[0] ?? null,
+          nextRun: nextAutoGrade(),
+        }
+      : null
     res.send(
       renderOverviewPage(tabs, {
         basePath,
         invitationAccounts: invitationService ? invitationService.listAccounts() : null,
+        schedule,
       }),
     )
   })

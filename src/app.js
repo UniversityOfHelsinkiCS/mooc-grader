@@ -23,6 +23,8 @@ function createApp({
   stats = null,
   // Records the button actions and shows them on /log; none is a no-op log
   actionLog,
+  // () => Date of the next scheduled grading; null when it is off
+  nextAutoGrade = null,
   auth,
   basePath = "",
 }) {
@@ -40,7 +42,15 @@ function createApp({
     createApiRouter({ tabs, mooc, invitationService, pullRequestService, actionLog }),
   )
   router.use(
-    createPageRouter({ tabs, courseService, invitationService, stats, actionLog, basePath }),
+    createPageRouter({
+      tabs,
+      courseService,
+      invitationService,
+      stats,
+      actionLog,
+      nextAutoGrade,
+      basePath,
+    }),
   )
 
   app.use(basePath || "/", router)
